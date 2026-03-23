@@ -3,8 +3,8 @@ import { useRef } from "react";
 import { Send, Bot, User } from "lucide-react";
 
 const messages = [
-  { role: "user", text: "Should I learn AI or cybersecurity?" },
-  { role: "ai", text: "By 2035, AI security became one of the most critical fields. The intersection of both disciplines creates the highest-value career trajectories. I'd recommend starting with AI fundamentals, then specializing in adversarial ML and AI safety." },
+  { role: "user", text: "Why was TXN-104882 flagged as fraud?" },
+  { role: "ai", text: "The transaction risk increased because the amount was far above the user's baseline, a new device appeared for the first time, and the payment happened at an unusual hour." },
 ];
 
 const ChatbotPreview = () => {
@@ -30,10 +30,10 @@ const ChatbotPreview = () => {
       <div className="relative z-10 container mx-auto px-6 py-24">
         <div className="text-center mb-12">
           <h2 className="font-heading text-3xl md:text-5xl font-bold text-foreground mb-4">
-            Chat with Your <span className="text-gradient-primary">Future Self</span>
+            Ask the <span className="text-gradient-primary">Fraud Copilot</span>
           </h2>
           <p className="font-body text-muted-foreground text-lg max-w-xl mx-auto">
-            Ask your AI-projected future self for career advice and life decisions.
+            Review flagged transactions, explanations, and analyst-ready fraud summaries.
           </p>
         </div>
 
@@ -83,7 +83,7 @@ const ChatbotPreview = () => {
           >
             <input
               type="text"
-              placeholder="Ask your future self anything..."
+              placeholder="Ask why a transaction was flagged..."
               className="flex-1 bg-transparent text-sm font-body text-foreground placeholder:text-muted-foreground outline-none"
               readOnly
             />

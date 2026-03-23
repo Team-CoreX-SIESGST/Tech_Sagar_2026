@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LogOut, User } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
-const navLinks = ["How It Works", "Features", "Demo", "About"];
+const navLinks = ["Problem", "How It Works", "Features", "Demo"];
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -37,19 +37,17 @@ const Navbar = () => {
       }}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-        {/* Logo */}
         <div className="flex items-center gap-2">
           <img
             src="/main-logo.png"
-            alt="AML Shield logo"
+            alt="FraudShield logo"
             className="h-8 w-8 rounded-md"
           />
           <span className="font-serif text-lg text-foreground font-semibold tracking-tight">
-            AML Shield
+            FraudShield
           </span>
         </div>
 
-        {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8">
           {navLinks.map((link) => (
             <a
@@ -60,12 +58,14 @@ const Navbar = () => {
               {link}
             </a>
           ))}
-          <a href="/chat" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
-            Chat with our AI
+          <a
+            href="/chat"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Fraud Copilot
           </a>
         </div>
 
-        {/* CTA / Auth */}
         <div className="hidden md:flex items-center gap-3">
           <a
             href="#demo"
@@ -74,8 +74,8 @@ const Navbar = () => {
             View Demo
           </a>
 
-          {!isLoading && (
-            user ? (
+          {!isLoading &&
+            (user ? (
               <div className="relative" ref={profileRef}>
                 <button
                   type="button"
@@ -130,11 +130,9 @@ const Navbar = () => {
               >
                 Login
               </Link>
-            )
-          )}
+            ))}
         </div>
 
-        {/* Mobile toggle */}
         <button
           className="md:hidden text-foreground"
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -150,7 +148,6 @@ const Navbar = () => {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {mobileOpen && (
         <div
           className="md:hidden border-t border-border px-6 py-4 flex flex-col gap-4"
@@ -171,13 +168,13 @@ const Navbar = () => {
             className="text-sm text-muted-foreground"
             onClick={() => setMobileOpen(false)}
           >
-            Chat with our AI
+            Fraud Copilot
           </Link>
           <a href="#demo" className="btn-primary !py-2 !px-5 text-sm text-center">
             View Demo
           </a>
-          {!isLoading && (
-            user ? (
+          {!isLoading &&
+            (user ? (
               <div className="rounded-2xl border border-border">
                 <div className="flex items-center gap-3 px-4 py-3">
                   {userAvatar ? (
@@ -217,8 +214,7 @@ const Navbar = () => {
               >
                 Login
               </Link>
-            )
-          )}
+            ))}
         </div>
       )}
     </nav>

@@ -17,20 +17,20 @@ const geistMono = Geist_Mono({
 });
 
 const playfair = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-playfair',
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-playfair",
 });
 
 const silkscreen = Silkscreen({
-  weight: ['400', '700'],
-  subsets: ['latin'],
-  variable: '--font-silkscreen',
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  variable: "--font-silkscreen",
 });
 
 export const metadata: Metadata = {
-  title: "AML Shield",
-  description: "AML Shield is a regulatory intelligence workspace",
+  title: "FraudShield",
+  description: "FraudShield is a transaction fraud detection workspace for cleaning data, analyzing risk, and explaining model decisions.",
   icons: {
     icon: "/main-logo.png",
     shortcut: "/main-logo.png",
@@ -49,11 +49,7 @@ export default function RootLayout({
         className={`${epilogue.variable} ${geistMono.variable} ${silkscreen.variable} ${playfair.variable} antialiased h-full`}
         suppressHydrationWarning
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-        >
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <div className="relative min-h-full">
             <AuthProvider>
               {children}
