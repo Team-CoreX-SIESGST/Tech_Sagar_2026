@@ -5,7 +5,12 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LogOut, User } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
-const navLinks = ["Problem", "How It Works", "Features", "Demo"];
+const navLinks = [
+  { label: "Problem", href: "/#problem" },
+  { label: "How It Works", href: "/#how-it-works" },
+  { label: "Features", href: "/#features" },
+  { label: "Demo", href: "/#demo" },
+];
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -37,7 +42,7 @@ const Navbar = () => {
       }}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <img
             src="/main-logo.png"
             alt="PARKHI.ai logo"
@@ -46,17 +51,17 @@ const Navbar = () => {
           <span className="font-serif text-lg text-foreground font-semibold tracking-tight">
             PARKHI.ai
           </span>
-        </div>
+        </Link>
 
         <div className="hidden md:flex items-center gap-8">
           {navLinks.map((link) => (
-            <a
-              key={link}
-              href={`#${link.toLowerCase().replace(/\s/g, "-")}`}
+            <Link
+              key={link.label}
+              href={link.href}
               className="text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
-              {link}
-            </a>
+              {link.label}
+            </Link>
           ))}
           <a
             href="/dashboard"
@@ -68,7 +73,7 @@ const Navbar = () => {
 
         <div className="hidden md:flex items-center gap-3">
           <a
-            href="#demo"
+            href="/#demo"
             className="btn-primary !py-2 !px-5 text-sm animate-glow-pulse"
           >
             View Demo
@@ -154,14 +159,14 @@ const Navbar = () => {
           style={{ background: "color-mix(in srgb, var(--background) 94%, transparent)" }}
         >
           {navLinks.map((link) => (
-            <a
-              key={link}
-              href={`#${link.toLowerCase().replace(/\s/g, "-")}`}
+            <Link
+              key={link.label}
+              href={link.href}
               className="text-sm text-muted-foreground"
               onClick={() => setMobileOpen(false)}
             >
-              {link}
-            </a>
+              {link.label}
+            </Link>
           ))}
           <Link
             href="/dashboard"
@@ -170,7 +175,7 @@ const Navbar = () => {
           >
             Dashboard
           </Link>
-          <a href="#demo" className="btn-primary !py-2 !px-5 text-sm text-center">
+          <a href="/#demo" className="btn-primary !py-2 !px-5 text-sm text-center">
             View Demo
           </a>
           {!isLoading &&
