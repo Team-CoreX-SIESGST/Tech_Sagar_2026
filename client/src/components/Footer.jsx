@@ -8,7 +8,7 @@ const FooterCTA = () => {
           <span className="font-bold">clear fraud decisions, and fast review.</span>
         </h2>
         <p className="mt-4 text-base text-muted-foreground">
-          FraudShield | FinTech Fraud Detection Platform | Tech Sagar 2026
+          PARKHI.ai | Predictive Anomaly Recognition & Knowledge-based Hazard Intelligence | Tech Sagar 2026
         </p>
         <div className="mt-8">
           <a href="#demo" className="btn-primary animate-glow-pulse">
@@ -21,9 +21,9 @@ const FooterCTA = () => {
         <div className="mx-auto max-w-6xl px-6 py-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground font-mono">
           <div className="flex items-center gap-2">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-primary" />
-            <span className="font-serif text-foreground text-sm">FraudShield</span>
+            <span className="font-serif text-foreground text-sm">PARKHI.ai</span>
           </div>
-          <p>© 2026 | Transaction fraud detection workspace</p>
+          <p>© 2026 | Predictive anomaly recognition workspace</p>
           <a href="#" className="text-primary hover:underline">GitHub →</a>
         </div>
       </div>

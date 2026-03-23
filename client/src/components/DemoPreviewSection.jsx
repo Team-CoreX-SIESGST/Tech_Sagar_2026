@@ -74,7 +74,7 @@ const DemoPreviewSection = () => {
           >
             <div className="flex items-center gap-2">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-primary" />
-              <span className="text-xs font-serif text-foreground">FraudShield</span>
+              <span className="text-xs font-serif text-foreground">PARKHI.ai</span>
             </div>
             <span className="pill-badge-amber !text-[10px]">3 high-risk transactions queued</span>
             <div className="flex items-center gap-2">

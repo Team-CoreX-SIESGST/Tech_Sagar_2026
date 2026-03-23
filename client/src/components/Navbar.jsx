@@ -40,11 +40,11 @@ const Navbar = () => {
         <div className="flex items-center gap-2">
           <img
             src="/main-logo.png"
-            alt="FraudShield logo"
+            alt="PARKHI.ai logo"
             className="h-8 w-8 rounded-md"
           />
           <span className="font-serif text-lg text-foreground font-semibold tracking-tight">
-            FraudShield
+            PARKHI.ai
           </span>
         </div>
 

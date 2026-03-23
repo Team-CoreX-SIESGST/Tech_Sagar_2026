@@ -709,36 +709,29 @@ const HeroSection = () => {
                 letterSpacing: "-.022em",
                 color: "var(--foreground)",
                 marginBottom: 20,
+                fontWeight: 900,
+                fontSize: 50,
               }}
             >
-              Clean the data.
+              PARKHI.ai-
               <br />
               <em
                 style={{
                   fontStyle: "italic",
                   color: "var(--primary)",
                   fontWeight: 400,
+                  fontSize: 40,
                 }}
               >
-                Detect
+                Predictive Anomaly Recognition
               </em>
-              <span style={{ fontWeight: 900 }}> the fraud.</span>
+              <span style={{ fontWeight: 500, fontSize: 50 }}>
+                {" "}
+                &amp; Knowledge-based Hazard Intelligence
+              </span>
             </h1>
 
-            <p
-              style={{
-                ...stagger(2),
-                fontSize: 16,
-                lineHeight: 1.76,
-                color: "var(--muted-foreground)",
-                maxWidth: 460,
-                margin: "0 auto 32px",
-              }}
-            >
-              FraudShield turns messy transaction CSV files into clean,
-              explainable fraud insights with behavioral features, risk scores,
-              and transaction-level predictions.
-            </p>
+            
 
             <div
               className="hero-row"

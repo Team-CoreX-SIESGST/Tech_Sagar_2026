@@ -29,8 +29,8 @@ const silkscreen = Silkscreen({
 });
 
 export const metadata: Metadata = {
-  title: "FraudShield",
-  description: "FraudShield is a transaction fraud detection workspace for cleaning data, analyzing risk, and explaining model decisions.",
+  title: "PARKHI.ai",
+  description: "PARKHI.ai delivers Predictive Anomaly Recognition & Knowledge-based Hazard Intelligence with explainable risk signals and early warning insights.",
   icons: {
     icon: "/main-logo.png",
     shortcut: "/main-logo.png",
