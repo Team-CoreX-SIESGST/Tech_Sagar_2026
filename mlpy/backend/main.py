@@ -74,6 +74,7 @@ def _compute_classification_metrics(
             "accuracy": None,
             "recall": None,
             "precision": None,
+            "f1": None,
             "actual_fraud_count": None,
         }
 
@@ -84,6 +85,7 @@ def _compute_classification_metrics(
             "accuracy": None,
             "recall": None,
             "precision": None,
+            "f1": None,
             "actual_fraud_count": None,
         }
 
@@ -99,11 +101,17 @@ def _compute_classification_metrics(
     accuracy = (true_positive + true_negative) / total if total else None
     recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) else None
     precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) else None
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if precision is not None and recall is not None and (precision + recall)
+        else None
+    )
 
     return {
         "accuracy": round(float(accuracy), 4) if accuracy is not None else None,
         "recall": round(float(recall), 4) if recall is not None else None,
         "precision": round(float(precision), 4) if precision is not None else None,
+        "f1": round(float(f1), 4) if f1 is not None else None,
         "actual_fraud_count": int(truth.sum()),
     }
 
@@ -128,7 +136,7 @@ async def upload_file(file: UploadFile = File(...)):
 
     try:
         output_path = Path(__file__).resolve().parents[1] / "clean_transactions.csv"
-        cleaned_df, _, _, _ = run_cleaning_pipeline(df, output_path)
+        cleaned_df, quality_report, cleaning_summary, report_text = run_cleaning_pipeline(df, output_path)
         patterned_df = detect_patterns(cleaned_df)
         feature_df = build_features(patterned_df)
         scored_df = score_fraud(feature_df)
@@ -147,23 +155,57 @@ async def upload_file(file: UploadFile = File(...)):
     flagged_df["fraud_probability"] = flagged_df["fraud_probability"].round(4)
     metrics = _compute_classification_metrics(scored_df, label_column, threshold)
     pseudo_metrics = compute_pseudo_truth_metrics(scored_df, threshold)
-    top_transactions = (
-        scored_df[["transaction_id", "fraud_probability"]]
-        .head(10)
-        .assign(fraud_probability=lambda frame: frame["fraud_probability"].round(4))
-        .to_dict(orient="records")
-    )
+    preview_columns = [
+        column
+        for column in [
+            "transaction_id",
+            "user_id",
+            "transaction_amount",
+            "transaction_timestamp",
+            "payment_method",
+            "merchant_category",
+            "fraud_probability",
+            "top_signals",
+        ]
+        if column in scored_df.columns
+    ]
+    top_transactions_df = scored_df.loc[:, preview_columns].head(10).copy()
+    if "fraud_probability" in top_transactions_df.columns:
+        top_transactions_df["fraud_probability"] = top_transactions_df["fraud_probability"].round(4)
+    if "transaction_timestamp" in top_transactions_df.columns:
+        top_transactions_df["transaction_timestamp"] = (
+            pd.to_datetime(top_transactions_df["transaction_timestamp"], errors="coerce")
+            .dt.strftime("%Y-%m-%d %H:%M:%S")
+            .fillna("N/A")
+        )
+    if "top_signals" in top_transactions_df.columns:
+        top_transactions_df["top_signals"] = top_transactions_df["top_signals"].apply(
+            lambda signals: signals if isinstance(signals, list) else []
+        )
+    top_transactions = top_transactions_df.to_dict(orient="records")
 
-    return {
+    fraud_metrics = {
         "fraud_transaction_count": int(len(flagged_df)),
         "threshold_used": round(float(threshold), 6),
         "accuracy": metrics["accuracy"],
         "recall": metrics["recall"],
         "precision": metrics["precision"],
+        "f1": metrics["f1"],
         "actual_fraud_count": metrics["actual_fraud_count"],
         "pseudo_accuracy": pseudo_metrics["pseudo_accuracy"],
         "pseudo_recall": pseudo_metrics["pseudo_recall"],
         "pseudo_precision": pseudo_metrics["pseudo_precision"],
+        "pseudo_f1": pseudo_metrics["pseudo_f1"],
         "pseudo_fraud_count": pseudo_metrics["pseudo_fraud_count"],
+    }
+
+    return {
+        "cleaned_file_path": str(output_path),
+        "quality_report": quality_report,
+        "cleaning_summary": cleaning_summary,
+        "cleaning_report_text": report_text,
+        "total_transactions_scored": int(len(scored_df)),
+        "fraud_metrics": fraud_metrics,
+        **fraud_metrics,
         "top_transactions": top_transactions,
     }

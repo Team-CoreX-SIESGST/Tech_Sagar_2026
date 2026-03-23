@@ -332,7 +332,7 @@ def train_model(df: pd.DataFrame) -> FraudModelArtifacts:
         n_estimators=250,
         contamination=0.11,
         random_state=42,
-        n_jobs=-1,
+        n_jobs=1,
     )
     isolation_forest.fit(matrix)
 
@@ -434,10 +434,16 @@ def compute_pseudo_truth_metrics(scored_df: pd.DataFrame, threshold: float) -> d
     pseudo_accuracy = (true_positive + true_negative) / total if total else 0.0
     pseudo_recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) else 0.0
     pseudo_precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) else 0.0
+    pseudo_f1 = (
+        2 * pseudo_precision * pseudo_recall / (pseudo_precision + pseudo_recall)
+        if (pseudo_precision + pseudo_recall)
+        else 0.0
+    )
 
     return {
         "pseudo_accuracy": round(float(pseudo_accuracy), 4),
         "pseudo_recall": round(float(pseudo_recall), 4),
         "pseudo_precision": round(float(pseudo_precision), 4),
+        "pseudo_f1": round(float(pseudo_f1), 4),
         "pseudo_fraud_count": int(pseudo_truth.sum()),
     }
