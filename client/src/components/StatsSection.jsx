@@ -1,10 +1,10 @@
 import useCountUp from "@/hooks/useCountUp";
 
 const stats = [
-  { end: 810, suffix: "K+", label: "Offshore entities" },
-  { end: 28, suffix: "", label: "Laundering typologies" },
-  { end: 6, suffix: "", label: "Jurisdictions covered" },
-  { end: 94, suffix: "%", label: "Detection accuracy" },
+  { end: 6, suffix: "", label: "Cleaning and analysis stages" },
+  { end: 5, suffix: "+", label: "Behavioral fraud indicators" },
+  { end: 3, suffix: "", label: "Outputs per transaction" },
+  { end: 1, suffix: "", label: "Explainable risk score" },
 ];
 
 const StatsSection = () => {
@@ -25,7 +25,8 @@ const StatItem = ({ end, suffix, label }) => {
   return (
     <div ref={ref}>
       <p className="text-4xl md:text-[56px] font-mono text-primary-foreground font-semibold">
-        {count}{suffix}
+        {count}
+        {suffix}
       </p>
       <p className="text-sm text-primary-foreground mt-1" style={{ opacity: 0.85 }}>
         {label}

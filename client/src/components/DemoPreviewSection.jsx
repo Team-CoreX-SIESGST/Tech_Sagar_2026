@@ -1,11 +1,11 @@
 import useScrollReveal from "@/hooks/useScrollReveal";
 
-const entities = [
-  { name: "Nexus Holdings Ltd", jurisdiction: "BVI", score: 94, tier: "red"  },
-  { name: "Meridian Trust Co", jurisdiction: "Cayman", score: 81, tier: "amber"  },
-  { name: "Albatross LLC", jurisdiction: "Panama", score: 76, tier: "amber"  },
-  { name: "Pacific Ventures", jurisdiction: "Delaware", score: 52, tier: "yellow"  },
-  { name: "Coral Bay Corp", jurisdiction: "Cyprus", score: 38, tier: "green"  },
+const transactions = [
+  { name: "TXN-104882", context: "User U-219 | Visa", score: 94, tier: "red" },
+  { name: "TXN-204771", context: "User U-031 | Wallet", score: 83, tier: "amber" },
+  { name: "TXN-778420", context: "User U-558 | UPI", score: 77, tier: "amber" },
+  { name: "TXN-116903", context: "User U-074 | Card", score: 58, tier: "yellow" },
+  { name: "TXN-440018", context: "User U-902 | NetBanking", score: 36, tier: "green" },
 ];
 
 const tierColors = {
@@ -16,22 +16,26 @@ const tierColors = {
 };
 
 const graphNodes = [
-  { id: "NH", x: 200, y: 60, flagged: true },
-  { id: "MT", x: 340, y: 100, flagged: true },
-  { id: "AL", x: 310, y: 220, flagged: true },
-  { id: "PV", x: 150, y: 240, flagged: false },
-  { id: "CB", x: 80, y: 140, flagged: false },
-  { id: "X1", x: 420, y: 180, flagged: false },
-  { id: "X2", x: 260, y: 160, flagged: false },
-  { id: "X3", x: 120, y: 40, flagged: false },
-  { id: "X4", x: 380, y: 40, flagged: false },
+  { id: "USR", x: 120, y: 135, flagged: true },
+  { id: "TXN", x: 235, y: 85, flagged: true },
+  { id: "DEV", x: 345, y: 135, flagged: true },
+  { id: "IP", x: 235, y: 210, flagged: false },
+  { id: "LOC", x: 70, y: 225, flagged: false },
+  { id: "PMT", x: 410, y: 75, flagged: false },
+  { id: "TIME", x: 390, y: 235, flagged: false },
+  { id: "AVG", x: 70, y: 55, flagged: false },
 ];
 
 const graphEdges = [
-  { from: 0, to: 1 }, { from: 1, to: 2 }, { from: 2, to: 0, isLoop: true },
-  { from: 0, to: 7 }, { from: 1, to: 5 }, { from: 2, to: 3 },
-  { from: 3, to: 4 }, { from: 4, to: 0 }, { from: 1, to: 8 },
-  { from: 6, to: 2 }, { from: 6, to: 1 },
+  { from: 0, to: 1, isLoop: true },
+  { from: 1, to: 2, isLoop: true },
+  { from: 1, to: 3 },
+  { from: 1, to: 4 },
+  { from: 1, to: 5 },
+  { from: 1, to: 6 },
+  { from: 0, to: 7 },
+  { from: 7, to: 1 },
+  { from: 2, to: 3 },
 ];
 
 const DemoPreviewSection = () => {
@@ -51,13 +55,12 @@ const DemoPreviewSection = () => {
         <div className="text-center mb-12">
           <span className="pill-badge">DEMO PREVIEW</span>
           <h2 className="mt-6 text-3xl md:text-[44px] leading-[1.15] font-serif text-foreground">
-            See a suspicious network
+            Preview the fraud workspace
             <br />
-            <span className="font-bold">caught in real time.</span>
+            <span className="font-bold">before an analyst investigates.</span>
           </h2>
         </div>
 
-        {/* Mock dashboard */}
         <div
           className="mx-auto max-w-[960px] rounded-2xl border border-border overflow-hidden"
           style={{
@@ -65,31 +68,28 @@ const DemoPreviewSection = () => {
             boxShadow: "0 32px 80px rgba(var(--primary-rgb),0.08)",
           }}
         >
-          {/* Top bar */}
           <div
             className="flex items-center justify-between px-4 h-11 border-b border-border"
             style={{ background: "color-mix(in srgb, var(--card) 88%, transparent)" }}
           >
             <div className="flex items-center gap-2">
               <span className="inline-block h-2.5 w-2.5 rounded-full bg-primary" />
-              <span className="text-xs font-serif text-foreground">AML Shield</span>
+              <span className="text-xs font-serif text-foreground">PARKHI.ai</span>
             </div>
-            <span className="pill-badge-amber !text-[10px]">⚠ 3 suspicious networks detected</span>
+            <span className="pill-badge-amber !text-[10px]">3 high-risk transactions queued</span>
             <div className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" />
               <span className="text-[11px] font-mono text-primary">Live</span>
             </div>
           </div>
 
-          {/* Three panel layout */}
           <div className="grid grid-cols-1 md:grid-cols-[220px_1fr_220px] min-h-[420px]">
-            {/* Left sidebar */}
             <div className="border-r border-border p-4">
               <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-3">
-                Flagged Entities
+                Flagged Transactions
               </p>
               <div className="space-y-2">
-                {entities.map((e) => {
+                {transactions.map((e) => {
                   const c = tierColors[e.tier];
                   return (
                     <div
@@ -99,7 +99,7 @@ const DemoPreviewSection = () => {
                     >
                       <div>
                         <p className="text-xs text-foreground leading-tight">{e.name}</p>
-                        <p className="text-[10px] font-mono text-muted-foreground">{e.jurisdiction}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{e.context}</p>
                       </div>
                       <span
                         className="text-[10px] font-mono rounded-full px-2 py-0.5"
@@ -112,15 +112,14 @@ const DemoPreviewSection = () => {
                 })}
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <span className="pill-badge !text-[9px] !px-2 !py-0.5">Circular flow · 3 entities</span>
-                <span className="pill-badge !text-[9px] !px-2 !py-0.5">Loan-back · 2 entities</span>
+                <span className="pill-badge !text-[9px] !px-2 !py-0.5">CSV cleaned</span>
+                <span className="pill-badge !text-[9px] !px-2 !py-0.5">SHAP-ready</span>
               </div>
             </div>
 
-            {/* Center graph */}
             <div className="p-4 flex flex-col">
               <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-2">
-                Network Graph
+                Relationship View
               </p>
               <div className="flex-1 flex items-center justify-center">
                 <svg viewBox="0 0 500 280" className="w-full max-h-[280px]">
@@ -130,7 +129,10 @@ const DemoPreviewSection = () => {
                     return (
                       <line
                         key={i}
-                        x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                        x1={from.x}
+                        y1={from.y}
+                        x2={to.x}
+                        y2={to.y}
                         stroke={edge.isLoop ? "var(--destructive)" : "var(--muted-foreground)"}
                         strokeWidth={edge.isLoop ? 2 : 1}
                         strokeDasharray={edge.isLoop ? "6 3" : undefined}
@@ -147,21 +149,27 @@ const DemoPreviewSection = () => {
                         </circle>
                       )}
                       <circle
-                        cx={node.x} cy={node.y} r="14"
+                        cx={node.x}
+                        cy={node.y}
+                        r="14"
                         fill={node.flagged ? "rgba(var(--destructive-rgb),0.2)" : "var(--card)"}
                         stroke={node.flagged ? "var(--destructive)" : "var(--border)"}
                         strokeWidth="1"
                       />
                       <text
-                        x={node.x} y={node.y + 1}
-                        fill="var(--foreground)" fontSize="9" textAnchor="middle" dominantBaseline="middle"
-                        fontFamily="'IBM Plex Mono', monospace" fontWeight="600"
+                        x={node.x}
+                        y={node.y + 1}
+                        fill="var(--foreground)"
+                        fontSize="9"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontFamily="'IBM Plex Mono', monospace"
+                        fontWeight="600"
                       >
                         {node.id}
                       </text>
                     </g>
                   ))}
-                  {/* Traveling dots on a couple of edges */}
                   <circle r="3" fill="var(--primary)">
                     <animate attributeName="cx" values={`${graphNodes[0].x};${graphNodes[1].x}`} dur="2s" repeatCount="indefinite" />
                     <animate attributeName="cy" values={`${graphNodes[0].y};${graphNodes[1].y}`} dur="2s" repeatCount="indefinite" />
@@ -173,36 +181,35 @@ const DemoPreviewSection = () => {
                 </svg>
               </div>
               <p className="text-xs font-mono text-muted-foreground text-center mt-2">
-                Loop detected: <span className="text-destructive">$6.8M</span> cycled across 3 hops
+                Risk score raised by amount deviation, unseen device, and late-night velocity burst
               </p>
             </div>
 
-            {/* Right sidebar */}
             <div className="border-l border-border p-4">
               <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-3">
-                Entity Detail
+                Transaction Detail
               </p>
               <div className="space-y-3">
                 <div>
-                  <h4 className="text-base font-serif text-foreground">Nexus Holdings Ltd</h4>
-                  <p className="text-[11px] font-mono text-muted-foreground">BVI · Incorporated: 2019</p>
+                  <h4 className="text-base font-serif text-foreground">TXN-104882</h4>
+                  <p className="text-[11px] font-mono text-muted-foreground">March 23, 2026 | 02:14 AM</p>
                 </div>
                 <div className="text-[11px] text-muted-foreground space-y-1">
-                  <p>UBO: <span className="text-foreground">[Redacted]</span> · Shared with: 3 entities</p>
-                  <p>Connected entities: 6 · Transactions: 142</p>
+                  <p>User: <span className="text-foreground">U-219</span> | Payment: <span className="text-foreground">Visa</span></p>
+                  <p>City: <span className="text-foreground">Bengaluru</span> | Device: <span className="text-foreground">Android 14</span></p>
+                  <p>IP status: <span className="text-foreground">Corrected and validated</span></p>
                 </div>
                 <div>
                   <span className="text-3xl font-mono text-destructive font-semibold">94</span>
                   <span className="text-sm text-muted-foreground font-mono"> /100</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  <span className="pill-badge-red !text-[9px] !px-2 !py-0.5">Circular fund flow — Layering</span>
-                  <span className="pill-badge-amber !text-[9px] !px-2 !py-0.5">Loan-back scheme</span>
+                  <span className="pill-badge-red !text-[9px] !px-2 !py-0.5">Amount deviation</span>
+                  <span className="pill-badge-amber !text-[9px] !px-2 !py-0.5">New device</span>
+                  <span className="pill-badge-amber !text-[9px] !px-2 !py-0.5">Unusual hour</span>
                 </div>
-                <button
-                  className="w-full mt-2 rounded-lg border border-primary text-primary text-xs font-mono py-2 hover:bg-primary/10 transition"
-                >
-                  Export Evidence Package ↗
+                <button className="w-full mt-2 rounded-lg border border-primary text-primary text-xs font-mono py-2 hover:bg-primary/10 transition">
+                  Review explanation →
                 </button>
               </div>
             </div>
@@ -211,7 +218,7 @@ const DemoPreviewSection = () => {
 
         <p className="text-center mt-8">
           <a href="#" className="text-[15px] text-primary hover:underline">
-            Explore the full interactive demo →
+            Explore the fraud dashboard →
           </a>
         </p>
       </div>

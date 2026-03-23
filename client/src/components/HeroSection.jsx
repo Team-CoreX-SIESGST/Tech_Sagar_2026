@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 
 const STATS = [
-  { value: "810K+", label: "Entities Analyzed" },
-  { value: "28", label: "Typologies Detected" },
-  { value: "Multi-hop", label: "Graph Tracing" },
+  { value: "CSV", label: "Raw Upload Ready" },
+  { value: "EDA", label: "Quality Insights" },
+  { value: "ML", label: "Risk Scoring" },
 ];
 
 // ══════════════════════════════════════════════════════════════════
@@ -217,7 +217,7 @@ const NetworkOrb = () => {
       ctx.font = "500 8px 'IBM Plex Mono',monospace";
       ctx.textAlign = "left";
       ctx.fillStyle = "rgba(0,232,122,.42)";
-      ctx.fillText("NET ANALYSIS v2.4", pad + 3, pad + 20);
+      ctx.fillText("FRAUD MONITOR v2.4", pad + 3, pad + 20);
       ctx.fillStyle = "rgba(0,232,122,.22)";
       ctx.fillText(
         `NODES: ${nodes.length}  EDGES: ${edges.length}`,
@@ -234,11 +234,11 @@ const NetworkOrb = () => {
       ctx.textAlign = "right";
       ctx.font = "700 8px 'IBM Plex Mono',monospace";
       ctx.fillStyle = "rgba(239,68,68,.72)";
-      ctx.fillText("⚠ LOOP DETECTED", W - pad - 3, pad + 20);
+      ctx.fillText("ALERT: RISK SPIKE", W - pad - 3, pad + 20);
       ctx.font = "500 8px 'IBM Plex Mono',monospace";
       ctx.fillStyle = "rgba(239,68,68,.42)";
-      ctx.fillText("$6.8M · 3 HOPS", W - pad - 3, pad + 32);
-      ctx.fillText("LAYERING PATTERN", W - pad - 3, pad + 44);
+      ctx.fillText("94 RISK · 3 SIGNALS", W - pad - 3, pad + 32);
+      ctx.fillText("BEHAVIORAL ANOMALY", W - pad - 3, pad + 44);
 
       // bottom loop chain
       ctx.textAlign = "center";
@@ -709,36 +709,29 @@ const HeroSection = () => {
                 letterSpacing: "-.022em",
                 color: "var(--foreground)",
                 marginBottom: 20,
+                fontWeight: 900,
+                fontSize: 50,
               }}
             >
-              Follow the money.
+              PARKHI.ai-
               <br />
               <em
                 style={{
                   fontStyle: "italic",
                   color: "var(--primary)",
-                  fontWeight: 400,
+                  fontWeight: 800,
+                  fontSize: 40,
                 }}
               >
-                Unmask
+                Predictive Anomaly Recognition
               </em>
-              <span style={{ fontWeight: 900 }}> the network.</span>
+              <span style={{ fontWeight: 500, fontSize: 50 }}>
+                {" "}
+                &amp; Knowledge-based Hazard Intelligence
+              </span>
             </h1>
 
-            <p
-              style={{
-                ...stagger(2),
-                fontSize: 16,
-                lineHeight: 1.76,
-                color: "var(--muted-foreground)",
-                maxWidth: 460,
-                margin: "0 auto 32px",
-              }}
-            >
-              AML Shield maps fund flows across shell company networks to
-              surface laundering patterns that single‑transaction systems can't
-              see.
-            </p>
+            
 
             <div
               className="hero-row"
@@ -761,7 +754,7 @@ const HeroSection = () => {
                   letterSpacing: ".035em",
                 }}
               >
-                Get Started Today ↗
+                View Demo →
               </a>
               <a
                 href="#how-it-works"
@@ -780,7 +773,7 @@ const HeroSection = () => {
               >
                 How it works
               </a>
-              <a
+              {/* <a
                 href="/chat"
                 className="sec-btn"
                 style={{
@@ -795,8 +788,8 @@ const HeroSection = () => {
                   color: "var(--muted-foreground)",
                 }}
               >
-                Chat with our AI
-              </a>
+                Open Fraud Copilot
+              </a> */}
             </div>
 
             <div
@@ -920,7 +913,7 @@ const HeroSection = () => {
                 opacity: 0.55,
               }}
             >
-              REAL-TIME ENTITY GRAPH · BVI · CAYMAN · PANAMA · DELAWARE
+              REAL-TIME SIGNAL VIEW · USER · DEVICE · IP · PAYMENT · LOCATION
             </p>
           </div>
         </div>

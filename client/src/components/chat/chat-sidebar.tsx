@@ -66,10 +66,10 @@ export function ChatSidebar({
       <SidebarHeader className="border-b border-border/40 px-3 py-4">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Image src="/main-logo.png" alt="AML Shield logo" width={40} height={40} className="rounded-xl shadow-sm" />
+            <Image src="/main-logo.png" alt="PARKHI.ai logo" width={40} height={40} className="rounded-xl shadow-sm" />
             <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold tracking-tight">RegIntel</span>
-              <span className="text-xs text-muted-foreground">Compliance workspace</span>
+              <span className="text-sm font-semibold tracking-tight">PARKHI.ai</span>
+              <span className="text-xs text-muted-foreground">Fraud analysis workspace</span>
             </div>
           </div>
           <SidebarTrigger className="md:hidden" />

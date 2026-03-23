@@ -1,7 +1,7 @@
 import NetworkGraph from "@/components/NetworkGraph";
 
 export const metadata = {
-  title: "Network Graph - Live Stream with Neo4j Thinking",
+  title: "Fraud Relationship Graph",
 };
 
 export default function GraphPage() {
@@ -18,12 +18,12 @@ export default function GraphPage() {
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-              Network Graph
+              Fraud Relationship Graph
             </h1>
-            <span className="pill-badge">LIVE STREAM</span>
+            <span className="pill-badge">LIVE VIEW</span>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Data streams via SSE. Search queries Neo4j in real time.
+            Investigate connected users, transactions, devices, and IP signals in real time.
           </p>
         </div>
 
