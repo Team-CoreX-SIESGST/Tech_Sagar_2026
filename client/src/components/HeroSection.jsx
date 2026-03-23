@@ -780,7 +780,7 @@ const HeroSection = () => {
               >
                 How it works
               </a>
-              <a
+              {/* <a
                 href="/chat"
                 className="sec-btn"
                 style={{
@@ -796,7 +796,7 @@ const HeroSection = () => {
                 }}
               >
                 Open Fraud Copilot
-              </a>
+              </a> */}
             </div>
 
             <div
