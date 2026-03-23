@@ -58,12 +58,12 @@ const Navbar = () => {
               {link}
             </a>
           ))}
-          {/* <a
-            href="/chat"
+          <a
+            href="/dashboard"
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            Fraud Copilot
-          </a> */}
+            Dashboard
+          </a>
         </div>
 
         <div className="hidden md:flex items-center gap-3">
@@ -163,13 +163,13 @@ const Navbar = () => {
               {link}
             </a>
           ))}
-          {/* <Link
-            href="/chat"
+          <Link
+            href="/dashboard"
             className="text-sm text-muted-foreground"
             onClick={() => setMobileOpen(false)}
           >
-            Fraud Copilot
-          </Link> */}
+            Dashboard
+          </Link>
           <a href="#demo" className="btn-primary !py-2 !px-5 text-sm text-center">
             View Demo
           </a>
