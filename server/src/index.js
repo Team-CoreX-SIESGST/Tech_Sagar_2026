@@ -20,6 +20,7 @@ const allowedOrigins = [
   "http://127.0.0.1:3000",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "https://tech-sagar-2026.vercel.app",
 ];
 const corsOptions = {
   origin: (origin, callback) => {
