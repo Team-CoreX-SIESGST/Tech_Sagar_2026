@@ -1,392 +1,1589 @@
-"use client"
+"use client";
 
-import { useRef, useState } from "react"
-import Navbar from "@/components/Navbar"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { useRef, useState, useEffect, useCallback } from "react";
+import Navbar from "@/components/Navbar";
 import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
   FileSpreadsheet,
   FileUp,
-  Loader2,
   Upload,
-} from "lucide-react"
+  Zap,
+  Shield,
+  Activity,
+} from "lucide-react";
+
+/* ─────────────────────────────────────────────────────────────
+   Constants & helpers
+───────────────────────────────────────────────────────────── */
+const MIN_LOAD_MS = 2000; // minimum animation display time
 
 const sections = [
   { id: "upload-file", label: "Upload File", icon: Upload },
   { id: "kpi", label: "KPI", icon: BarChart3 },
-]
+];
 
-const formatNumber = (value) => new Intl.NumberFormat("en-IN").format(Number(value) || 0)
+const formatNumber = (v) =>
+  new Intl.NumberFormat("en-IN").format(Number(v) || 0);
 
+/* ─────────────────────────────────────────────────────────────
+   ColumnStreams  — vertical dot-streams canvas background
+   Faint idle; active state lights columns in a cascade wave.
+───────────────────────────────────────────────────────────── */
+const ColumnStreams = ({ active }) => {
+  const cvs = useRef(null);
+  const rafRef = useRef(null);
+  const activeRef = useRef(active);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => {
+    const canvas = cvs.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const NUM_COLS = 30;
+    const DOT_SPACING = 17;
+    const DOT_R = 1.05;
+    let cols = [];
+
+    const build = () => {
+      canvas.width = canvas.offsetWidth * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const W = canvas.offsetWidth;
+      const H = canvas.offsetHeight;
+      const spacing = W / (NUM_COLS + 1);
+      cols = Array.from({ length: NUM_COLS }, (_, i) => ({
+        x: spacing * (i + 1),
+        offset: Math.random() * DOT_SPACING,
+        speed: 0.28 + Math.random() * 0.42,
+        bright: 0,
+        brightDecay: 0,
+        waveDelay: i * 52,
+        waveArmed: false,
+        dotAlphas: Array.from(
+          { length: Math.ceil(H / DOT_SPACING) + 2 },
+          () => 0.04 + Math.random() * 0.05,
+        ),
+      }));
+    };
+    build();
+    window.addEventListener("resize", build);
+
+    let waveStart = null;
+    let wasActive = false;
+
+    const draw = (ts) => {
+      if (!canvas) return;
+      ctx.clearRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+      const H = canvas.offsetHeight;
+      const isOn = activeRef.current;
+
+      if (isOn && !wasActive) {
+        waveStart = ts;
+        wasActive = true;
+      }
+      if (!isOn) {
+        wasActive = false;
+        waveStart = null;
+      }
+
+      cols.forEach((col) => {
+        if (isOn) {
+          col.offset = (col.offset + col.speed * 0.38) % DOT_SPACING;
+          if (waveStart !== null) {
+            const elapsed = ts - waveStart - col.waveDelay;
+            if (elapsed > 0 && !col.waveArmed) {
+              col.waveArmed = true;
+              col.bright = 1;
+              col.brightDecay = 1;
+            }
+          }
+          if (col.waveArmed && col.brightDecay > 0) {
+            col.brightDecay -= 0.005;
+            col.bright = Math.max(0, col.brightDecay);
+          }
+        } else {
+          col.waveArmed = false;
+          col.bright = 0;
+          col.brightDecay = 0;
+        }
+
+        const numDots = Math.ceil(H / DOT_SPACING) + 2;
+        for (let d = 0; d < numDots; d++) {
+          const y = d * DOT_SPACING - col.offset;
+          if (y < -2 || y > H + 2) continue;
+          const base = col.dotAlphas[d] ?? 0.045;
+          const alpha = isOn
+            ? base + col.bright * 0.65
+            : base * (0.45 + 0.55 * Math.sin(ts / 2800 + col.x * 0.01));
+          ctx.beginPath();
+          ctx.arc(col.x, y, DOT_R, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(0,232,122,${Math.min(alpha, 0.75).toFixed(3)})`;
+          ctx.fill();
+        }
+      });
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => {
+      window.removeEventListener("resize", build);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={cvs}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        zIndex: 1,
+      }}
+    />
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────
+   TargetBrackets  — CSS corner L-brackets, animate on upload
+───────────────────────────────────────────────────────────── */
+const TargetBrackets = ({ active }) => {
+  const arm = 20;
+  const T = "1.8px";
+  const c = active ? "rgba(0,232,122,0.68)" : "rgba(0,232,122,0.16)";
+  const corners = [
+    { top: 14, left: 14, rot: 0 },
+    { top: 14, right: 14, rot: 90 },
+    { bottom: 14, right: 14, rot: 180 },
+    { bottom: 14, left: 14, rot: 270 },
+  ];
+  return (
+    <>
+      <style>{`
+        @keyframes bkt-in { from{opacity:0;transform:rotate(var(--r)) scale(1.2)} to{opacity:1;transform:rotate(var(--r)) scale(1)} }
+        @keyframes bkt-pulse { 0%,100%{opacity:0.68} 50%{opacity:1} }
+      `}</style>
+      {corners.map((corner, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            width: arm,
+            height: arm,
+            ...(corner.top !== undefined ? { top: corner.top } : {}),
+            ...(corner.bottom !== undefined ? { bottom: corner.bottom } : {}),
+            ...(corner.left !== undefined ? { left: corner.left } : {}),
+            ...(corner.right !== undefined ? { right: corner.right } : {}),
+            "--r": `${corner.rot}deg`,
+            transform: `rotate(${corner.rot}deg)`,
+            borderTop: `${T} solid ${c}`,
+            borderLeft: `${T} solid ${c}`,
+            transition: "border-color 0.4s ease",
+            animation: active
+              ? `bkt-in 0.4s ease ${i * 55}ms both, bkt-pulse 2.2s ease ${i * 55 + 400}ms infinite`
+              : "none",
+            pointerEvents: "none",
+            zIndex: 6,
+          }}
+        />
+      ))}
+    </>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────
+   ArcSpinner  — rotating dual-arc around the center icon
+───────────────────────────────────────────────────────────── */
+const ArcSpinner = ({ active }) => (
+  <>
+    <style>{`
+      @keyframes spin-cw  { to { transform: rotate(360deg);  } }
+      @keyframes spin-ccw { to { transform: rotate(-360deg); } }
+      @keyframes arc-appear { from{opacity:0;transform:scale(0.78) rotate(0deg)} to{opacity:1;transform:scale(1) rotate(0deg)} }
+    `}</style>
+    {active && (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "none",
+          zIndex: 7,
+        }}
+      >
+        {/* outer arc — 3/4 circle, clockwise */}
+        <div
+          style={{
+            position: "absolute",
+            width: 84,
+            height: 84,
+            borderRadius: "50%",
+            border: "1.5px solid transparent",
+            borderTopColor: "rgba(0,232,122,0.9)",
+            borderRightColor: "rgba(0,232,122,0.9)",
+            borderBottomColor: "rgba(0,232,122,0.9)",
+            animation:
+              "spin-cw 1.05s cubic-bezier(0.4,0,0.2,1) infinite, arc-appear 0.38s ease both",
+          }}
+        />
+        {/* inner half arc — counter-clockwise */}
+        <div
+          style={{
+            position: "absolute",
+            width: 68,
+            height: 68,
+            borderRadius: "50%",
+            border: "1px solid transparent",
+            borderTopColor: "rgba(0,232,122,0.32)",
+            borderRightColor: "rgba(0,232,122,0.32)",
+            animation:
+              "spin-ccw 1.7s linear infinite, arc-appear 0.45s ease 0.08s both",
+          }}
+        />
+      </div>
+    )}
+  </>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   PhaseText  — monospace typing text with blinking cursor
+───────────────────────────────────────────────────────────── */
+const PhaseText = ({ text }) => (
+  <>
+    <style>{`@keyframes cur{0%,49%{opacity:1}50%,100%{opacity:0}}`}</style>
+    <span
+      style={{
+        fontFamily: "'IBM Plex Mono',monospace",
+        fontSize: 12,
+        color: "rgba(0,232,122,0.72)",
+        letterSpacing: "0.07em",
+      }}
+    >
+      {text}
+      <span style={{ animation: "cur 0.9s step-end infinite", marginLeft: 2 }}>
+        _
+      </span>
+    </span>
+  </>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   ScanningBar
+───────────────────────────────────────────────────────────── */
+const ScanningBar = ({ active, progress }) => (
+  <div style={{ width: "100%", marginTop: 20 }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        marginBottom: 7,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "'IBM Plex Mono',monospace",
+          fontSize: 9,
+          letterSpacing: "0.15em",
+          color: "rgba(0,232,122,0.42)",
+          textTransform: "uppercase",
+        }}
+      >
+        {active ? "Processing data stream" : "Ready"}
+      </span>
+      {active && (
+        <span
+          style={{
+            fontFamily: "'IBM Plex Mono',monospace",
+            fontSize: 9,
+            color: "rgba(0,232,122,0.42)",
+          }}
+        >
+          {progress}%
+        </span>
+      )}
+    </div>
+    <div
+      style={{
+        height: 2,
+        width: "100%",
+        background: "rgba(0,232,122,0.07)",
+        borderRadius: 1,
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          height: "100%",
+          width: active ? `${progress}%` : "0%",
+          background:
+            "linear-gradient(to right, rgba(0,232,122,0.5), rgba(0,232,122,0.95))",
+          transition: "width 0.35s ease",
+          boxShadow: active ? "0 0 7px rgba(0,232,122,0.55)" : "none",
+        }}
+      />
+    </div>
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   KPI Card
+───────────────────────────────────────────────────────────── */
+const KpiCard = ({ label, value, icon: Icon, highlight, delay = 0 }) => (
+  <div
+    style={{
+      borderRadius: 15,
+      border: highlight
+        ? "1px solid rgba(239,68,68,0.26)"
+        : "1px solid rgba(0,232,122,0.1)",
+      background: highlight ? "rgba(239,68,68,0.035)" : "rgba(0,232,122,0.022)",
+      padding: "17px 19px",
+      position: "relative",
+      overflow: "hidden",
+      animation: `kpiIn 0.5s ease ${delay}ms both`,
+    }}
+  >
+    <style>{`@keyframes kpiIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        width: 54,
+        height: 54,
+        background: highlight
+          ? "radial-gradient(circle at top right,rgba(239,68,68,0.13),transparent 70%)"
+          : "radial-gradient(circle at top right,rgba(0,232,122,0.08),transparent 70%)",
+      }}
+    />
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 11,
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "'IBM Plex Mono',monospace",
+          fontSize: 9,
+          letterSpacing: "0.13em",
+          color: "rgba(255,255,255,0.33)",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </p>
+      <div
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 7,
+          border: highlight
+            ? "1px solid rgba(239,68,68,0.2)"
+            : "1px solid rgba(0,232,122,0.12)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: highlight
+            ? "rgba(239,68,68,0.065)"
+            : "rgba(0,232,122,0.045)",
+        }}
+      >
+        <Icon
+          style={{
+            width: 12,
+            height: 12,
+            color: highlight ? "rgb(239,68,68)" : "rgb(0,232,122)",
+          }}
+        />
+      </div>
+    </div>
+    <p
+      style={{
+        fontFamily: "'Playfair Display',Georgia,serif",
+        fontSize: 30,
+        fontWeight: 700,
+        color: highlight ? "rgba(239,100,100,0.9)" : "rgba(255,255,255,0.86)",
+        lineHeight: 1,
+        letterSpacing: "-0.02em",
+      }}
+    >
+      {formatNumber(value)}
+    </p>
+  </div>
+);
+
+/* ─────────────────────────────────────────────────────────────
+   Main Dashboard
+───────────────────────────────────────────────────────────── */
 function DashboardPage() {
-  const fileInputRef = useRef(null)
-  const sectionRefs = useRef({})
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [dragActive, setDragActive] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const [error, setError] = useState("")
-  const [uploadResult, setUploadResult] = useState(null)
-  const [activeSection, setActiveSection] = useState("upload-file")
+  const fileInputRef = useRef(null);
+  const sectionRefs = useRef({});
 
-  const cleaningSummary = uploadResult?.cleaning_summary || {}
-  const qualityReport = uploadResult?.quality_report || {}
-  const qualityColumns = Array.isArray(qualityReport.columns) ? qualityReport.columns : []
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState("");
+  const [error, setError] = useState("");
+  const [uploadResult, setUploadResult] = useState(null);
+  const [activeSection, setActiveSection] = useState("upload-file");
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  const derivedMetrics = (() => {
-    const rowsBefore = Number(cleaningSummary.rows_before_cleaning || qualityReport?.summary?.rows || 0)
-    const rowsAfter = Number(cleaningSummary.rows_after_cleaning || 0)
-    const duplicatesRemoved = Number(cleaningSummary.duplicates_removed || 0)
-    const invalidTimestamps = Number(cleaningSummary.invalid_timestamps_removed || 0)
-    const invalidIps = Number(cleaningSummary.invalid_ips_detected || 0)
-    const outliersDetected = Number(cleaningSummary.outliers_detected || 0)
-    const missingFilled = Number(cleaningSummary.missing_values_filled || 0)
-    const columnsAnalyzed = Number(qualityReport?.summary?.columns || 0)
+  // Store the cancellation function for the progress simulation
+  const cancelSimulationRef = useRef(null);
 
-    return {
-      rowsBefore,
-      rowsAfter,
-      duplicatesRemoved,
-      invalidTimestamps,
-      invalidIps,
-      outliersDetected,
-      missingFilled,
-      columnsAnalyzed,
-    }
-  })()
+  const cleaningSummary = uploadResult?.cleaning_summary || {};
+  const qualityReport = uploadResult?.quality_report || {};
+  const qualityColumns = Array.isArray(qualityReport.columns)
+    ? qualityReport.columns
+    : [];
 
-  const navigateToSection = (sectionId) => {
-    setActiveSection(sectionId)
-    sectionRefs.current[sectionId]?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }
+  const derivedMetrics = (() => ({
+    rowsBefore: Number(
+      cleaningSummary.rows_before_cleaning || qualityReport?.summary?.rows || 0,
+    ),
+    rowsAfter: Number(cleaningSummary.rows_after_cleaning || 0),
+    duplicatesRemoved: Number(cleaningSummary.duplicates_removed || 0),
+    invalidTimestamps: Number(cleaningSummary.invalid_timestamps_removed || 0),
+    invalidIps: Number(cleaningSummary.invalid_ips_detected || 0),
+    outliersDetected: Number(cleaningSummary.outliers_detected || 0),
+    missingFilled: Number(cleaningSummary.missing_values_filled || 0),
+  }))();
+
+  const navigateToSection = (id) => {
+    setActiveSection(id);
+    sectionRefs.current[id]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
 
   const handleFile = (file) => {
-    if (!file) return
-
+    if (!file) return;
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      setError("Please upload a CSV file.")
-      setSelectedFile(null)
-      return
+      setError("Only CSV files are accepted.");
+      setSelectedFile(null);
+      return;
     }
+    setError("");
+    setSelectedFile(file);
+    setUploadResult(null);
+    setUploadSuccess(false);
+  };
 
-    setError("")
-    setSelectedFile(file)
-    setUploadResult(null)
-  }
+  const handleFileChange = (e) => handleFile(e.target.files?.[0]);
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragActive(false);
+    handleFile(e.dataTransfer.files?.[0]);
+  };
 
-  const handleFileChange = (event) => {
-    handleFile(event.target.files?.[0])
-  }
+  // Fixed progress simulation: returns a cancel function
+  const runProgressSim = useCallback(() => {
+    const phases = [
+      { label: "VALIDATING SCHEMA", end: 16 },
+      { label: "PARSING RECORDS", end: 36 },
+      { label: "DETECTING ANOMALIES", end: 60 },
+      { label: "CLEANING DATA", end: 79 },
+      { label: "COMPUTING METRICS", end: 92 },
+      { label: "FINALIZING", end: 98 },
+    ];
+    let idx = 0;
+    let cur = 0;
+    let active = true;
+    let timeoutId = null;
 
-  const handleDrop = (event) => {
-    event.preventDefault()
-    setDragActive(false)
-    handleFile(event.dataTransfer.files?.[0])
-  }
+    const tick = () => {
+      if (!active) return;
+      if (idx >= phases.length) return;
+      setUploadPhase(phases[idx].label);
+      if (cur < phases[idx].end) {
+        cur += 0.7 + Math.random() * 1.1;
+        setUploadProgress(Math.min(cur, phases[idx].end));
+        timeoutId = setTimeout(tick, 65);
+      } else {
+        idx++;
+        timeoutId = setTimeout(tick, 130);
+      }
+    };
+
+    tick();
+
+    const cancel = () => {
+      active = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+
+    return cancel;
+  }, []);
 
   const submitUpload = async () => {
     if (!selectedFile) {
-      setError("Choose a CSV file first.")
-      return
+      setError("Select a CSV file first.");
+      return;
     }
-
+    const startTime = Date.now();
     try {
-      setIsUploading(true)
-      setError("")
+      setIsUploading(true);
+      setError("");
+      setUploadProgress(0);
+      setUploadPhase("INITIALIZING");
 
-      const formData = new FormData()
-      formData.append("file", selectedFile)
+      // Start simulation and store cancel function
+      const cancelSim = runProgressSim();
+      cancelSimulationRef.current = cancelSim;
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      })
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
-      const data = await response.json().catch(() => ({}))
+      // ── MINIMUM LOAD TIME GUARANTEE ─────────────────────────
+      const [response] = await Promise.all([
+        fetch("/api/upload", { method: "POST", body: formData }),
+        new Promise((r) => setTimeout(r, MIN_LOAD_MS)),
+      ]);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data?.detail || data?.error || "Upload failed.");
 
-      if (!response.ok) {
-        throw new Error(data?.detail || data?.error || "Upload failed.")
+      // Stop simulation immediately to avoid further progress updates
+      if (cancelSimulationRef.current) {
+        cancelSimulationRef.current();
+        cancelSimulationRef.current = null;
       }
 
-      setUploadResult(data)
-      setActiveSection("kpi")
-      sectionRefs.current.kpi?.scrollIntoView({ behavior: "smooth", block: "start" })
-    } catch (uploadError) {
-      setError(uploadError.message || "Upload failed.")
-    } finally {
-      setIsUploading(false)
-    }
-  }
+      // ── Visual grace period before revealing results ─────────
+      setUploadProgress(100);
+      setUploadPhase("COMPLETE");
+      setUploadSuccess(true);
+      await new Promise((r) => setTimeout(r, 700));
 
-  const openFilePicker = () => fileInputRef.current?.click()
+      setUploadResult(data);
+      setActiveSection("kpi");
+      sectionRefs.current.kpi?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    } catch (err) {
+      setError(err.message || "Upload failed.");
+    } finally {
+      setIsUploading(false);
+      // Ensure simulation is cancelled if something went wrong
+      if (cancelSimulationRef.current) {
+        cancelSimulationRef.current();
+        cancelSimulationRef.current = null;
+      }
+      setUploadProgress(0);
+      setUploadPhase("");
+    }
+  };
+
+  // Cleanup simulation on unmount
+  useEffect(() => {
+    return () => {
+      if (cancelSimulationRef.current) {
+        cancelSimulationRef.current();
+      }
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap');
 
-      <main className="mx-auto max-w-7xl px-4 pb-16 pt-28 md:px-6">
-        <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="sticky top-24 h-fit rounded-3xl border border-border bg-card/80 p-4 shadow-xl backdrop-blur">
-            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-primary/15 via-card to-card p-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-primary">Dashboard</p>
-              <h1 className="mt-3 font-serif text-2xl text-foreground">PARKHI.ai</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Upload a CSV, inspect the cleaning KPIs, and review the cleaned results in one place.
-              </p>
-            </div>
+        :root {
+          --green: rgb(0,232,122);
+          --card:  rgba(9,13,17,0.92);
+          --bdr:   rgba(0,232,122,0.1);
+          --bdr-h: rgba(0,232,122,0.22);
+        }
 
-            <div className="mt-5 space-y-2">
-              {sections.map((section) => {
-                const Icon = section.icon
-                const isActive = activeSection === section.id
+        @keyframes fadeUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes badgeIn { from{opacity:0;transform:scale(0.9) translateY(4px)} to{opacity:1;transform:scale(1) translateY(0)} }
+        @keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes dot-blink{ 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes ok-ring {
+          0%  {box-shadow:0 0 0 0   rgba(0,232,122,0);}
+          40% {box-shadow:0 0 0 9px rgba(0,232,122,0.16);}
+          100%{box-shadow:0 0 0 0   rgba(0,232,122,0);}
+        }
+        @keyframes icon-breathe { 0%,100%{opacity:0.55} 50%{opacity:1} }
 
-                return (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => navigateToSection(section.id)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all",
-                      isActive
-                        ? "border-primary/40 bg-primary/10 text-foreground shadow-sm"
-                        : "border-border bg-background/40 text-muted-foreground hover:border-primary/25 hover:bg-muted/50 hover:text-foreground",
-                    )}
-                  >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-current/15 bg-background/70">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                    <span className="font-medium">{section.label}</span>
-                  </button>
-                )
-              })}
-            </div>
+        .card{
+          border-radius:20px;
+          border:1px solid var(--bdr);
+          background:var(--card);
+          backdrop-filter:blur(18px);
+          transition:border-color 0.3s ease;
+        }
+        .card:hover { border-color:var(--bdr-h); }
 
-            <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4">
-              <p className="text-xs font-mono uppercase tracking-[0.25em] text-muted-foreground">Status</p>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Upload pipeline</span>
-                <span className="pill-badge">{isUploading ? "Processing" : "Ready"}</span>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Selected file</span>
-                <span className="max-w-[120px] truncate text-sm text-foreground">
-                  {selectedFile ? selectedFile.name : "None"}
-                </span>
-              </div>
-            </div>
-          </aside>
+        .nav-btn{
+          display:flex; align-items:center; gap:12px;
+          width:100%; border-radius:12px; padding:11px 14px;
+          font-family:'IBM Plex Mono',monospace;
+          font-size:10px; letter-spacing:0.09em; text-transform:uppercase;
+          cursor:pointer; transition:all 0.2s ease;
+        }
+        .nav-btn.on {
+          border:1px solid rgba(0,232,122,0.3);
+          background:rgba(0,232,122,0.07);
+          color:var(--green);
+        }
+        .nav-btn.off {
+          border:1px solid rgba(255,255,255,0.05);
+          background:transparent;
+          color:rgba(255,255,255,0.35);
+        }
+        .nav-btn.off:hover {
+          border-color:rgba(0,232,122,0.18);
+          color:rgba(255,255,255,0.68);
+          background:rgba(0,232,122,0.03);
+        }
 
-          <div className="space-y-6">
-            <section
-              ref={(node) => {
-                sectionRefs.current["upload-file"] = node
-              }}
-              id="upload-file"
-              className="scroll-mt-28 rounded-3xl border border-border bg-card/80 p-6 shadow-xl backdrop-blur md:p-8"
+        .drop-zone{
+          border-radius:15px;
+          border:1px solid;
+          transition:border-color 0.3s ease, background 0.3s ease;
+          position:relative; overflow:hidden;
+        }
+        .drop-zone.idle   { border-color:rgba(0,232,122,0.11); background:rgba(0,232,122,0.015); }
+        .drop-zone.hover  { border-color:rgba(0,232,122,0.4);  background:rgba(0,232,122,0.042); }
+        .drop-zone.active { border-color:rgba(0,232,122,0.27); background:rgba(0,232,122,0.022); }
+        .drop-zone.done   { border-color:rgba(0,232,122,0.52); animation:ok-ring 1s ease forwards; }
+
+        .btn-p{
+          display:inline-flex; align-items:center; gap:8px;
+          padding:11px 25px; border-radius:9px;
+          font-family:'IBM Plex Mono',monospace;
+          font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+          cursor:pointer; transition:all 0.2s ease;
+          background:var(--green); color:rgb(0,17,8); border:none;
+        }
+        .btn-p:hover:not(:disabled){ background:rgb(10,248,136); transform:translateY(-1px); }
+        .btn-p:disabled{ opacity:0.38; cursor:not-allowed; }
+
+        .btn-g{
+          display:inline-flex; align-items:center; gap:8px;
+          padding:11px 20px; border-radius:9px;
+          font-family:'IBM Plex Mono',monospace;
+          font-size:10px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase;
+          cursor:pointer; transition:all 0.2s ease;
+          background:transparent; color:rgba(0,232,122,0.72);
+          border:1px solid rgba(0,232,122,0.18);
+        }
+        .btn-g:hover{ border-color:rgba(0,232,122,0.4); background:rgba(0,232,122,0.04); color:var(--green); }
+
+        .mono  { font-family:'IBM Plex Mono',monospace; }
+        .serif { font-family:'Playfair Display',Georgia,serif; }
+
+        .pill{
+          display:inline-flex; align-items:center; gap:5px;
+          padding:3px 9px; border-radius:5px;
+          font-family:'IBM Plex Mono',monospace;
+          font-size:9px; letter-spacing:0.14em; text-transform:uppercase;
+          border:1px solid rgba(0,232,122,0.17);
+          color:rgba(0,232,122,0.58);
+          background:rgba(0,232,122,0.04);
+        }
+
+        .hud-row{
+          display:flex; align-items:center; justify-content:space-between;
+          padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04);
+        }
+        .hud-row:last-child{ border-bottom:none; }
+
+        .stat-mini{
+          border-radius:12px;
+          border:1px solid rgba(0,232,122,0.08);
+          background:rgba(0,232,122,0.02);
+          padding:13px 16px;
+        }
+
+        .col-row{
+          border-radius:9px;
+          border:1px solid rgba(255,255,255,0.052);
+          background:rgba(255,255,255,0.016);
+          padding:10px 13px;
+          transition:border-color 0.18s;
+        }
+        .col-row:hover{ border-color:rgba(0,232,122,0.16); }
+      `}</style>
+
+      <div style={{ minHeight: "100vh", background: "#070a0d" }}>
+        <Navbar />
+        <main
+          style={{
+            maxWidth: 1280,
+            margin: "0 auto",
+            padding: "112px 24px 64px",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gap: 22,
+              gridTemplateColumns: "234px 1fr",
+            }}
+          >
+            {/* ── SIDEBAR ───────────────────────────────────── */}
+            <aside
+              style={{ position: "sticky", top: 96, height: "fit-content" }}
             >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="pill-badge">Upload File</p>
-                  <h2 className="mt-4 font-serif text-3xl text-foreground">Drop a CSV to start analysis</h2>
-                  <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-                    Drag and drop your dataset here or choose a file manually. The backend will clean the data and return KPI-ready metrics.
-                  </p>
+              <div
+                className="card"
+                style={{
+                  padding: "20px 18px",
+                  marginBottom: 10,
+                  background:
+                    "linear-gradient(140deg,rgba(0,232,122,0.04) 0%,rgba(9,13,17,0.96) 55%)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 9,
+                    marginBottom: 13,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "var(--green)",
+                      animation: "dot-blink 4s ease infinite",
+                    }}
+                  />
+                  <span
+                    className="mono"
+                    style={{
+                      fontSize: 9,
+                      letterSpacing: "0.22em",
+                      color: "rgba(0,232,122,0.48)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Dashboard
+                  </span>
                 </div>
-                <div className="rounded-2xl border border-border bg-background/60 px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <FileSpreadsheet className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {selectedFile ? selectedFile.name : "No file selected"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        CSV only, sent to `/upload` in `mlpy/backend/main.py`
-                      </p>
-                    </div>
-                  </div>
+                <div
+                  className="serif"
+                  style={{
+                    fontSize: 25,
+                    fontWeight: 900,
+                    color: "rgba(255,255,255,0.88)",
+                    lineHeight: 1,
+                    marginBottom: 6,
+                  }}
+                >
+                  PARKHI.ai
                 </div>
+                <p
+                  className="mono"
+                  style={{
+                    fontSize: 9,
+                    lineHeight: 1.65,
+                    color: "rgba(255,255,255,0.27)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  Upload · Clean · Inspect
+                </p>
               </div>
 
-              <div
-                onDragEnter={(event) => {
-                  event.preventDefault()
-                  setDragActive(true)
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault()
-                  setDragActive(true)
-                }}
-                onDragLeave={(event) => {
-                  event.preventDefault()
-                  setDragActive(false)
-                }}
-                onDrop={handleDrop}
-                className={cn(
-                  "mt-6 rounded-3xl border-2 border-dashed px-6 py-12 text-center transition-all md:px-10",
-                  dragActive
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-gradient-to-br from-background via-background to-muted/30",
-                )}
-              >
-                <div className="mx-auto flex max-w-2xl flex-col items-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
-                    <FileUp className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="mt-5 font-serif text-2xl text-foreground">
-                    {dragActive ? "Release to upload" : "Drag and drop your CSV here"}
-                  </h3>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    The file will be posted to the backend `/upload` route and the cleaned results will populate the dashboard automatically.
-                  </p>
-
-                  <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row">
-                    <Button type="button" onClick={openFilePicker} variant="outline" className="rounded-full px-5">
-                      Choose file
-                    </Button>
-                    <Button
+              <div className="card" style={{ padding: 10, marginBottom: 10 }}>
+                {sections.map(({ id, label, icon: Icon }) => {
+                  const on = activeSection === id;
+                  return (
+                    <button
+                      key={id}
                       type="button"
-                      onClick={submitUpload}
-                      disabled={!selectedFile || isUploading}
-                      className="rounded-full px-5"
+                      onClick={() => navigateToSection(id)}
+                      className={`nav-btn ${on ? "on" : "off"}`}
+                      style={{ marginBottom: 4 }}
                     >
-                      {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      {isUploading ? "Uploading..." : "Upload to backend"}
-                    </Button>
+                      <span
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 8,
+                          flexShrink: 0,
+                          border: `1px solid ${on ? "rgba(0,232,122,0.24)" : "rgba(255,255,255,0.055)"}`,
+                          background: on
+                            ? "rgba(0,232,122,0.08)"
+                            : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Icon style={{ width: 12, height: 12 }} />
+                      </span>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="card" style={{ padding: "14px 16px" }}>
+                <div
+                  className="mono"
+                  style={{
+                    fontSize: 8,
+                    letterSpacing: "0.22em",
+                    color: "rgba(255,255,255,0.24)",
+                    textTransform: "uppercase",
+                    marginBottom: 10,
+                  }}
+                >
+                  System Status
+                </div>
+                {[
+                  {
+                    k: "Pipeline",
+                    v: isUploading ? "● ACTIVE" : "● READY",
+                    vc: isUploading ? "var(--green)" : "rgba(0,232,122,0.42)",
+                  },
+                  {
+                    k: "File",
+                    v: selectedFile ? selectedFile.name : "—",
+                    vc: "rgba(255,255,255,0.58)",
+                    maxW: 106,
+                  },
+                  ...(uploadResult
+                    ? [{ k: "Result", v: "✓ CLEAN", vc: "var(--green)" }]
+                    : []),
+                ].map(({ k, v, vc, maxW }) => (
+                  <div key={k} className="hud-row">
+                    <span
+                      className="mono"
+                      style={{ fontSize: 10, color: "rgba(255,255,255,0.33)" }}
+                    >
+                      {k}
+                    </span>
+                    <span
+                      className="mono"
+                      style={{
+                        fontSize: 10,
+                        color: vc,
+                        ...(maxW
+                          ? {
+                              maxWidth: maxW,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }
+                          : {}),
+                      }}
+                    >
+                      {v}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </aside>
+
+            {/* ── MAIN CONTENT ──────────────────────────────── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* ── UPLOAD ──────────────────────────────────── */}
+              <section
+                ref={(n) => {
+                  sectionRefs.current["upload-file"] = n;
+                }}
+                id="upload-file"
+                className="card"
+                style={{ padding: "30px 34px", scrollMarginTop: 112 }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    marginBottom: 26,
+                  }}
+                >
+                  <div>
+                    <div className="pill" style={{ marginBottom: 13 }}>
+                      <FileUp style={{ width: 9, height: 9 }} /> Upload File
+                    </div>
+                    <h2
+                      className="serif"
+                      style={{
+                        fontSize: 28,
+                        fontWeight: 900,
+                        color: "rgba(255,255,255,0.88)",
+                        lineHeight: 1.12,
+                        margin: 0,
+                      }}
+                    >
+                      Drop a CSV to
+                      <br />
+                      <em
+                        style={{ fontStyle: "italic", color: "var(--green)" }}
+                      >
+                        begin analysis
+                      </em>
+                    </h2>
+                  </div>
+                  {selectedFile && !isUploading && (
+                    <div
+                      style={{
+                        padding: "9px 14px",
+                        borderRadius: 10,
+                        border: "1px solid rgba(0,232,122,0.15)",
+                        background: "rgba(0,232,122,0.03)",
+                        animation: "badgeIn 0.28s ease both",
+                      }}
+                    >
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 8,
+                          color: "rgba(0,232,122,0.48)",
+                          marginBottom: 3,
+                        }}
+                      >
+                        SELECTED
+                      </div>
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 10,
+                          color: "rgba(255,255,255,0.7)",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {selectedFile.name}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Drop Zone */}
+                <div
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragActive(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragActive(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setDragActive(false);
+                  }}
+                  onDrop={handleDrop}
+                  className={`drop-zone ${uploadSuccess ? "done" : isUploading ? "active" : dragActive ? "hover" : "idle"}`}
+                  style={{ padding: "62px 28px", textAlign: "center" }}
+                >
+                  <ColumnStreams active={isUploading} />
+                  <TargetBrackets active={isUploading} />
+                  {/* <ArcSpinner active={isUploading} /> */}
+
+                  <div style={{ position: "relative", zIndex: 10 }}>
+                    {/* Icon circle */}
+                    <div
+                      style={{
+                        width: 60,
+                        height: 60,
+                        margin: "0 auto 18px",
+                        borderRadius: "50%",
+                        border: isUploading
+                          ? "1px solid rgba(0,232,122,0.28)"
+                          : "1px solid rgba(0,232,122,0.12)",
+                        background: isUploading
+                          ? "rgba(0,232,122,0.06)"
+                          : "rgba(0,232,122,0.032)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.4s ease",
+                      }}
+                    >
+                      {isUploading ? (
+                        <Activity
+                          style={{
+                            width: 22,
+                            height: 22,
+                            color: "var(--green)",
+                            animation: "icon-breathe 1.6s ease infinite",
+                          }}
+                        />
+                      ) : uploadSuccess ? (
+                        <CheckCircle2
+                          style={{
+                            width: 22,
+                            height: 22,
+                            color: "var(--green)",
+                          }}
+                        />
+                      ) : (
+                        <FileUp
+                          style={{
+                            width: 22,
+                            height: 22,
+                            color: "rgba(0,232,122,0.52)",
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Label */}
+                    <div style={{ minHeight: 26, marginBottom: 7 }}>
+                      {isUploading ? (
+                        <PhaseText text={uploadPhase} />
+                      ) : (
+                        <h3
+                          className="serif"
+                          style={{
+                            fontSize: 19,
+                            fontWeight: 700,
+                            color: uploadSuccess
+                              ? "var(--green)"
+                              : "rgba(255,255,255,0.75)",
+                            margin: 0,
+                          }}
+                        >
+                          {dragActive
+                            ? "Release to upload"
+                            : uploadSuccess
+                              ? "Upload complete"
+                              : "Drag & drop your CSV here"}
+                        </h3>
+                      )}
+                    </div>
+
+                    {isUploading && (
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 10,
+                          color: "rgba(0,232,122,0.38)",
+                          letterSpacing: "0.07em",
+                          marginBottom: 2,
+                        }}
+                      >
+                        {uploadProgress.toFixed(0)}% complete
+                      </div>
+                    )}
+
+                    {!isUploading && !uploadSuccess && (
+                      <p
+                        className="mono"
+                        style={{
+                          fontSize: 11,
+                          color: "rgba(255,255,255,0.2)",
+                          letterSpacing: "0.04em",
+                          marginBottom: 20,
+                          lineHeight: 1.8,
+                        }}
+                      >
+                        Dataset posted to backend /upload route.
+                        <br />
+                        Clean results populate the dashboard automatically.
+                      </p>
+                    )}
+
+                    <ScanningBar
+                      active={isUploading}
+                      progress={Math.round(uploadProgress)}
+                    />
+
+                    {!isUploading && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 10,
+                          marginTop: 22,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="btn-g"
+                        >
+                          <FileSpreadsheet style={{ width: 12, height: 12 }} />{" "}
+                          Choose file
+                        </button>
+                        <button
+                          type="button"
+                          onClick={submitUpload}
+                          disabled={!selectedFile || isUploading}
+                          className="btn-p"
+                        >
+                          <Upload style={{ width: 12, height: 12 }} /> Upload to
+                          backend
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept=".csv"
-                    className="hidden"
+                    style={{ display: "none" }}
                     onChange={handleFileChange}
                   />
-
-                  {selectedFile ? (
-                    <div className="mt-6 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-3 text-sm text-foreground">
-                      Ready to upload <span className="font-medium">{selectedFile.name}</span>
-                    </div>
-                  ) : null}
-
-                  {error ? (
-                    <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                      {error}
-                    </div>
-                  ) : null}
                 </div>
-              </div>
-            </section>
 
-            <section
-              ref={(node) => {
-                sectionRefs.current.kpi = node
-              }}
-              id="kpi"
-              className="scroll-mt-28 rounded-3xl border border-border bg-card/80 p-6 shadow-xl backdrop-blur md:p-8"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="pill-badge">KPI</p>
-                  <h2 className="mt-4 font-serif text-3xl text-foreground">Cleaning metrics at a glance</h2>
-                </div>
-                {uploadResult ? (
-                  <div className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
-                    <CheckCircle2 className="mr-2 inline-block h-4 w-4" />
-                    Upload processed
+                {error && (
+                  <div
+                    className="mono"
+                    style={{
+                      marginTop: 12,
+                      padding: "9px 14px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(239,68,68,0.2)",
+                      background: "rgba(239,68,68,0.04)",
+                      fontSize: 10,
+                      color: "rgba(239,120,120,0.8)",
+                      letterSpacing: "0.04em",
+                      animation: "badgeIn 0.2s ease",
+                    }}
+                  >
+                    ⚠ {error}
                   </div>
-                ) : null}
-              </div>
+                )}
+              </section>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {[
-                  { label: "Rows before", value: derivedMetrics.rowsBefore, icon: BarChart3 },
-                  { label: "Rows after", value: derivedMetrics.rowsAfter, icon: CheckCircle2 },
-                  { label: "Duplicates removed", value: derivedMetrics.duplicatesRemoved, icon: FileSpreadsheet },
-                  { label: "Outliers detected", value: derivedMetrics.outliersDetected, icon: AlertTriangle },
-                ].map((metric) => {
-                  const Icon = metric.icon
-                  return (
-                    <div key={metric.label} className="rounded-2xl border border-border bg-background/60 p-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground">{metric.label}</p>
-                        <Icon className="h-4 w-4 text-primary" />
-                      </div>
-                      <p className="mt-3 font-serif text-3xl text-foreground">{formatNumber(metric.value)}</p>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                {[
-                  { label: "Invalid timestamps", value: derivedMetrics.invalidTimestamps },
-                  { label: "Invalid IPs", value: derivedMetrics.invalidIps },
-                  { label: "Missing values filled", value: derivedMetrics.missingFilled },
-                ].map((metric) => (
-                  <div key={metric.label} className="rounded-2xl border border-border bg-background/60 p-4">
-                    <p className="text-sm text-muted-foreground">{metric.label}</p>
-                    <p className="mt-2 font-serif text-2xl text-foreground">{formatNumber(metric.value)}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {uploadResult ? (
-              <section className="rounded-3xl border border-border bg-card/80 p-6 shadow-xl backdrop-blur md:p-8">
-                <div className="flex items-center justify-between gap-4">
+              {/* ── KPI ─────────────────────────────────────── */}
+              <section
+                ref={(n) => {
+                  sectionRefs.current.kpi = n;
+                }}
+                id="kpi"
+                className="card"
+                style={{ padding: "30px 34px", scrollMarginTop: 112 }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    marginBottom: 26,
+                  }}
+                >
                   <div>
-                    <p className="pill-badge">Backend Data</p>
-                    <h2 className="mt-4 font-serif text-3xl text-foreground">Response from `/upload`</h2>
+                    <div className="pill" style={{ marginBottom: 13 }}>
+                      <BarChart3 style={{ width: 9, height: 9 }} /> KPI Metrics
+                    </div>
+                    <h2
+                      className="serif"
+                      style={{
+                        fontSize: 28,
+                        fontWeight: 900,
+                        color: "rgba(255,255,255,0.88)",
+                        lineHeight: 1.12,
+                        margin: 0,
+                      }}
+                    >
+                      Cleaning metrics
+                      <br />
+                      <em
+                        style={{ fontStyle: "italic", color: "var(--green)" }}
+                      >
+                        at a glance
+                      </em>
+                    </h2>
                   </div>
-                  <span className="text-sm text-muted-foreground">
-                    Cleaned file path: <span className="text-foreground">{uploadResult.cleaned_file_path}</span>
-                  </span>
+                  {uploadResult && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "7px 13px",
+                        borderRadius: 9,
+                        border: "1px solid rgba(0,232,122,0.24)",
+                        background: "rgba(0,232,122,0.05)",
+                        animation: "badgeIn 0.35s ease both",
+                      }}
+                    >
+                      <CheckCircle2
+                        style={{ width: 13, height: 13, color: "var(--green)" }}
+                      />
+                      <span
+                        className="mono"
+                        style={{
+                          fontSize: 9,
+                          color: "var(--green)",
+                          letterSpacing: "0.12em",
+                        }}
+                      >
+                        PROCESSED
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-6 grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-2xl border border-border bg-background/60 p-4">
-                    <h3 className="text-lg font-semibold text-foreground">Quality report</h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Rows: {formatNumber(qualityReport?.summary?.rows)} | Columns: {formatNumber(qualityReport?.summary?.columns)} | Duplicates: {formatNumber(qualityReport?.summary?.duplicate_rows)}
-                    </p>
-                    <div className="mt-4 space-y-3">
-                      {(qualityColumns.slice(0, 5)).map((column) => (
-                        <div key={`${column.column}-detail`} className="rounded-2xl border border-border bg-card px-4 py-3">
-                          <div className="flex items-center justify-between gap-4">
-                            <p className="font-medium text-foreground">{column.column}</p>
-                            <span className="text-xs text-muted-foreground">{column.dtype}</span>
-                          </div>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Missing {column.missing} ({column.missing_percent}%), unique {column.unique_values}
-                          </p>
-                        </div>
-                      ))}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4,1fr)",
+                    gap: 11,
+                    marginBottom: 11,
+                  }}
+                >
+                  <KpiCard
+                    label="Rows before"
+                    value={derivedMetrics.rowsBefore}
+                    icon={BarChart3}
+                    delay={0}
+                  />
+                  <KpiCard
+                    label="Rows after"
+                    value={derivedMetrics.rowsAfter}
+                    icon={CheckCircle2}
+                    delay={55}
+                  />
+                  <KpiCard
+                    label="Duplicates"
+                    value={derivedMetrics.duplicatesRemoved}
+                    icon={FileSpreadsheet}
+                    delay={110}
+                  />
+                  <KpiCard
+                    label="Outliers"
+                    value={derivedMetrics.outliersDetected}
+                    icon={AlertTriangle}
+                    highlight
+                    delay={165}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3,1fr)",
+                    gap: 11,
+                  }}
+                >
+                  {[
+                    {
+                      label: "Invalid timestamps",
+                      value: derivedMetrics.invalidTimestamps,
+                    },
+                    { label: "Invalid IPs", value: derivedMetrics.invalidIps },
+                    {
+                      label: "Missing values filled",
+                      value: derivedMetrics.missingFilled,
+                    },
+                  ].map((m, i) => (
+                    <div
+                      key={m.label}
+                      className="stat-mini"
+                      style={{
+                        animation: `kpiIn 0.5s ease ${215 + i * 55}ms both`,
+                      }}
+                    >
+                      <p
+                        className="mono"
+                        style={{
+                          fontSize: 9,
+                          letterSpacing: "0.12em",
+                          color: "rgba(255,255,255,0.26)",
+                          textTransform: "uppercase",
+                          marginBottom: 7,
+                        }}
+                      >
+                        {m.label}
+                      </p>
+                      <p
+                        className="serif"
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 700,
+                          color: "rgba(255,255,255,0.76)",
+                          margin: 0,
+                        }}
+                      >
+                        {formatNumber(m.value)}
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-border bg-background/60 p-4">
-                    <h3 className="text-lg font-semibold text-foreground">Quick interpretation</h3>
-                    <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-                      <li className="flex gap-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        Duplicates and invalid timestamps are useful preprocessing signals for cleanup.
-                      </li>
-                      <li className="flex gap-3">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        The cleaned output is already stored on the backend and can be used for the next model step.
-                      </li>
-                    </ul>
-                  </div>
+                  ))}
                 </div>
               </section>
-            ) : null}
+
+              {/* ── BACKEND DATA ────────────────────────────── */}
+              {uploadResult && (
+                <section
+                  className="card"
+                  style={{
+                    padding: "30px 34px",
+                    animation: "slideUp 0.44s ease both",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      marginBottom: 22,
+                    }}
+                  >
+                    <div>
+                      <div className="pill" style={{ marginBottom: 13 }}>
+                        <Shield style={{ width: 9, height: 9 }} /> Backend Data
+                      </div>
+                      <h2
+                        className="serif"
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 900,
+                          color: "rgba(255,255,255,0.88)",
+                          margin: 0,
+                        }}
+                      >
+                        Response from{" "}
+                        <em
+                          style={{ fontStyle: "italic", color: "var(--green)" }}
+                        >
+                          /upload
+                        </em>
+                      </h2>
+                    </div>
+                    {uploadResult.cleaned_file_path && (
+                      <div style={{ textAlign: "right" }}>
+                        <div
+                          className="mono"
+                          style={{
+                            fontSize: 8,
+                            color: "rgba(255,255,255,0.24)",
+                            marginBottom: 3,
+                            letterSpacing: "0.1em",
+                          }}
+                        >
+                          CLEANED PATH
+                        </div>
+                        <div
+                          className="mono"
+                          style={{
+                            fontSize: 10,
+                            color: "rgba(0,232,122,0.58)",
+                          }}
+                        >
+                          {uploadResult.cleaned_file_path}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 13,
+                    }}
+                  >
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,0.052)",
+                        padding: "17px 19px",
+                      }}
+                    >
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 9,
+                          letterSpacing: "0.13em",
+                          color: "rgba(255,255,255,0.33)",
+                          textTransform: "uppercase",
+                          marginBottom: 6,
+                        }}
+                      >
+                        Quality Report
+                      </div>
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 10,
+                          color: "rgba(255,255,255,0.26)",
+                          marginBottom: 13,
+                          lineHeight: 1.85,
+                        }}
+                      >
+                        Rows:{" "}
+                        <span style={{ color: "rgba(0,232,122,0.6)" }}>
+                          {formatNumber(qualityReport?.summary?.rows)}
+                        </span>
+                        {" · "}Cols:{" "}
+                        <span style={{ color: "rgba(0,232,122,0.6)" }}>
+                          {formatNumber(qualityReport?.summary?.columns)}
+                        </span>
+                        {" · "}Dupes:{" "}
+                        <span style={{ color: "rgba(239,68,68,0.6)" }}>
+                          {formatNumber(qualityReport?.summary?.duplicate_rows)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 7,
+                        }}
+                      >
+                        {qualityColumns.slice(0, 5).map((col) => (
+                          <div key={col.column} className="col-row">
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                marginBottom: 3,
+                              }}
+                            >
+                              <span
+                                className="mono"
+                                style={{
+                                  fontSize: 10,
+                                  color: "rgba(255,255,255,0.68)",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {col.column}
+                              </span>
+                              <span
+                                className="mono"
+                                style={{
+                                  fontSize: 8,
+                                  color: "rgba(0,232,122,0.4)",
+                                  padding: "2px 6px",
+                                  border: "1px solid rgba(0,232,122,0.1)",
+                                  borderRadius: 3,
+                                }}
+                              >
+                                {col.dtype}
+                              </span>
+                            </div>
+                            <div
+                              className="mono"
+                              style={{
+                                fontSize: 9,
+                                color: "rgba(255,255,255,0.25)",
+                              }}
+                            >
+                              Missing {col.missing} ({col.missing_percent}%) ·
+                              Unique {col.unique_values}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid rgba(255,255,255,0.052)",
+                        padding: "17px 19px",
+                      }}
+                    >
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 9,
+                          letterSpacing: "0.13em",
+                          color: "rgba(255,255,255,0.33)",
+                          textTransform: "uppercase",
+                          marginBottom: 13,
+                        }}
+                      >
+                        Interpretation
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 10,
+                        }}
+                      >
+                        {[
+                          {
+                            Icon: AlertTriangle,
+                            c: "rgba(239,68,68,0.55)",
+                            b: "rgba(239,68,68,0.1)",
+                            bg: "rgba(239,68,68,0.025)",
+                            t: "Duplicates and invalid timestamps are useful preprocessing signals for cleanup and pipeline hygiene.",
+                          },
+                          {
+                            Icon: CheckCircle2,
+                            c: "rgba(0,232,122,0.6)",
+                            b: "rgba(0,232,122,0.1)",
+                            bg: "rgba(0,232,122,0.025)",
+                            t: "Cleaned output is stored on the backend and is ready for downstream model inference.",
+                          },
+                          {
+                            Icon: Zap,
+                            c: "rgba(0,232,122,0.4)",
+                            b: "rgba(0,232,122,0.07)",
+                            bg: "rgba(0,0,0,0.16)",
+                            t: "High outlier counts may indicate behavioral anomalies worth routing to the risk scoring module.",
+                          },
+                        ].map(({ Icon, c, b, bg, t }, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              display: "flex",
+                              gap: 10,
+                              padding: "11px 12px",
+                              borderRadius: 9,
+                              border: `1px solid ${b}`,
+                              background: bg,
+                            }}
+                          >
+                            <Icon
+                              style={{
+                                width: 12,
+                                height: 12,
+                                color: c,
+                                marginTop: 2,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <p
+                              className="mono"
+                              style={{
+                                fontSize: 9,
+                                lineHeight: 1.78,
+                                color: "rgba(255,255,255,0.37)",
+                                margin: 0,
+                              }}
+                            >
+                              {t}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
-  )
+        </main>
+      </div>
+    </>
+  );
 }
 
-export default DashboardPage
+export default DashboardPage;
