@@ -719,7 +719,7 @@ const HeroSection = () => {
                 style={{
                   fontStyle: "italic",
                   color: "var(--primary)",
-                  fontWeight: 400,
+                  fontWeight: 800,
                   fontSize: 40,
                 }}
               >
