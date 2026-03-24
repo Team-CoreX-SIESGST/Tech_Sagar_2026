@@ -132,3 +132,4 @@ The frontend reads those outputs through its internal API routes.
 - There are a few existing README files inside subfolders, but this root README is the best place to understand the fraud workspace.
 - The `server/` folder is kept as a supporting service for parts of the workspace, but the main documented flow here is the fraud dashboard and Python pipeline.
 
+live link : https://tech-sagar-2026-1-1.onrender.com
