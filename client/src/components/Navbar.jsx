@@ -10,6 +10,9 @@ const navLinks = [
   { label: "How It Works", href: "/#how-it-works" },
   { label: "Features", href: "/#features" },
   { label: "Demo", href: "/#demo" },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Fraud Report", href: "/fraud-report" },
+  { label: "EDA", href: "/eda" },
 ];
 
 const Navbar = () => {
@@ -63,12 +66,6 @@ const Navbar = () => {
               {link.label}
             </Link>
           ))}
-          <a
-            href="/dashboard"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Dashboard
-          </a>
         </div>
 
         <div className="hidden md:flex items-center gap-3">
@@ -168,13 +165,6 @@ const Navbar = () => {
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/dashboard"
-            className="text-sm text-muted-foreground"
-            onClick={() => setMobileOpen(false)}
-          >
-            Dashboard
-          </Link>
           <a href="/#demo" className="btn-primary !py-2 !px-5 text-sm text-center">
             View Demo
           </a>

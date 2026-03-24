@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import {
   AlertTriangle,
@@ -458,7 +459,7 @@ function DashboardPage() {
   const qualityColumns = Array.isArray(qualityReport.columns)
     ? qualityReport.columns
     : [];
-  const fraudMetrics = uploadResult?.fraud_metrics || {};
+  const fraudMetrics = uploadResult?.fraud_metrics || uploadResult || {};
   const topTransactions = Array.isArray(uploadResult?.top_transactions)
     ? uploadResult.top_transactions
     : [];
@@ -1550,7 +1551,9 @@ function DashboardPage() {
                                   color: "rgba(255,255,255,0.25)",
                                 }}
                               >
-                                {tx.user_id || "Unknown user"}
+                                {tx.criticality
+                                  ? `Severity: ${String(tx.criticality).toUpperCase()}`
+                                  : tx.user_id || "Scored transaction"}
                               </div>
                             </div>
                             <div
@@ -1581,9 +1584,10 @@ function DashboardPage() {
                                 lineHeight: 1.7,
                               }}
                             >
-                              {Array.isArray(tx.top_signals) && tx.top_signals.length
-                                ? tx.top_signals.join(" | ")
-                                : "Signals unavailable"}
+                              {tx.plain_english_reason ||
+                                (Array.isArray(tx.top_signals) && tx.top_signals.length
+                                  ? tx.top_signals.join(" | ")
+                                  : "Signals unavailable")}
                             </div>
                           </div>
                         ))
@@ -1858,6 +1862,25 @@ function DashboardPage() {
                         ))}
                       </div>
                     </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 10,
+                      marginTop: 14,
+                    }}
+                  >
+                    <Link href="/fraud-report" className="btn-g">
+                      View fraud report
+                    </Link>
+                    <Link href="/eda" className="btn-g">
+                      Open EDA
+                    </Link>
+                    <Link href="/graph" className="btn-g">
+                      Relationship graph
+                    </Link>
                   </div>
                 </section>
               )}

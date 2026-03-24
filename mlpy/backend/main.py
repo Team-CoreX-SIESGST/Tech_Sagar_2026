@@ -1,19 +1,26 @@
-#backend/main.py
+from __future__ import annotations
 
 from pathlib import Path
 
 import io
 import logging
+
 import pandas as pd
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 
 try:
+    from . import model as model_module
     from .cleaning import run_cleaning_pipeline
+    from .eda import generate_eda_artifacts
+    from .explain import generate_full_report, save_report
     from .features import build_features
     from .model import compute_pseudo_truth_metrics, derive_flagging_threshold, score_fraud
     from .patterns import detect_patterns
 except ImportError:  # Allows running as a script without package context.
+    import model as model_module
     from cleaning import run_cleaning_pipeline
+    from eda import generate_eda_artifacts
+    from explain import generate_full_report, save_report
     from features import build_features
     from model import compute_pseudo_truth_metrics, derive_flagging_threshold, score_fraud
     from patterns import detect_patterns
@@ -119,75 +126,62 @@ def _compute_classification_metrics(
 
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    """
-    Upload endpoint that accepts a CSV and returns fraud scoring results
-    after cleaning, pattern detection, feature engineering, and ML scoring.
-    """
+async def upload_file(file: UploadFile = File(...)) -> dict:
+    """Upload a CSV and run cleaning, scoring, explanation, and EDA generation."""
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported.")
 
     try:
         contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
+        raw_df = pd.read_csv(io.BytesIO(contents))
     except Exception as exc:
         logger.error("Failed to read uploaded CSV: %s", exc)
         raise HTTPException(status_code=400, detail="Invalid CSV file.")
 
-    label_column = _find_label_column(df)
+    label_column = _find_label_column(raw_df)
+    root = Path(__file__).resolve().parents[1]
+    output_dir = root / "output"
+    eda_dir = output_dir / "eda"
 
     try:
-        output_path = Path(__file__).resolve().parents[1] / "clean_transactions.csv"
-        cleaned_df, quality_report, cleaning_summary, report_text = run_cleaning_pipeline(df, output_path)
+        cleaned_path = root / "clean_transactions.csv"
+        cleaned_df, quality_report, cleaning_summary, report_text = run_cleaning_pipeline(raw_df, cleaned_path)
         patterned_df = detect_patterns(cleaned_df)
         feature_df = build_features(patterned_df)
         scored_df = score_fraud(feature_df)
+        threshold = derive_flagging_threshold(scored_df)
+        flagged_df = scored_df.loc[scored_df["fraud_probability"] >= threshold].copy()
+        metrics = _compute_classification_metrics(scored_df, label_column, threshold)
+        pseudo_metrics = compute_pseudo_truth_metrics(scored_df, threshold)
+        model_type = model_module._MODEL_CACHE.model_type if model_module._MODEL_CACHE is not None else "unknown"
+        report = generate_full_report(scored_df, threshold=threshold, model_type=model_type)
+        report_path = save_report(report, output_dir / "fraud_report.json")
+        eda_summary = generate_eda_artifacts(raw_df, cleaned_df, scored_df, eda_dir)
     except ValueError as exc:
         logger.error("Fraud pipeline validation error: %s", exc)
         raise HTTPException(status_code=400, detail=str(exc))
-    except Exception as exc:  # pragma: no cover - defensive API boundary.
+    except Exception as exc:  # pragma: no cover
         logger.exception("Fraud scoring pipeline failed: %s", exc)
         raise HTTPException(status_code=500, detail="Fraud scoring pipeline failed.")
 
-    threshold = derive_flagging_threshold(scored_df)
-    flagged_df = scored_df.loc[scored_df["fraud_probability"] >= threshold].copy()
-    if flagged_df.empty:
-        flagged_df = scored_df.head(min(10, len(scored_df))).copy()
+    top_transactions = report["top_fraud_transactions"][:10]
+    summary = report["summary"]
 
-    flagged_df["fraud_probability"] = flagged_df["fraud_probability"].round(4)
-    metrics = _compute_classification_metrics(scored_df, label_column, threshold)
-    pseudo_metrics = compute_pseudo_truth_metrics(scored_df, threshold)
-    preview_columns = [
-        column
-        for column in [
-            "transaction_id",
-            "user_id",
-            "transaction_amount",
-            "transaction_timestamp",
-            "payment_method",
-            "merchant_category",
-            "fraud_probability",
-            "top_signals",
-        ]
-        if column in scored_df.columns
-    ]
-    top_transactions_df = scored_df.loc[:, preview_columns].head(10).copy()
-    if "fraud_probability" in top_transactions_df.columns:
-        top_transactions_df["fraud_probability"] = top_transactions_df["fraud_probability"].round(4)
-    if "transaction_timestamp" in top_transactions_df.columns:
-        top_transactions_df["transaction_timestamp"] = (
-            pd.to_datetime(top_transactions_df["transaction_timestamp"], errors="coerce")
-            .dt.strftime("%Y-%m-%d %H:%M:%S")
-            .fillna("N/A")
-        )
-    if "top_signals" in top_transactions_df.columns:
-        top_transactions_df["top_signals"] = top_transactions_df["top_signals"].apply(
-            lambda signals: signals if isinstance(signals, list) else []
-        )
-    top_transactions = top_transactions_df.to_dict(orient="records")
-
-    fraud_metrics = {
+    return {
+        "cleaned_file_path": str(cleaned_path),
+        "fraud_report_path": str(report_path),
+        "eda_output_dir": str(eda_dir),
+        "quality_report": quality_report,
+        "cleaning_summary": cleaning_summary,
+        "cleaning_report_text": report_text,
+        "total_transactions_scored": int(len(scored_df)),
         "fraud_transaction_count": int(len(flagged_df)),
+        "critical_count": summary["critical_count"],
+        "high_count": summary["high_count"],
+        "medium_count": summary["medium_count"],
+        "fraud_rate_percent": summary["fraud_rate_percent"],
+        "unique_patterns_detected": summary["unique_patterns_detected"],
+        "pattern_breakdown": report["pattern_breakdown"],
         "threshold_used": round(float(threshold), 6),
         "accuracy": metrics["accuracy"],
         "recall": metrics["recall"],
@@ -199,15 +193,6 @@ async def upload_file(file: UploadFile = File(...)):
         "pseudo_precision": pseudo_metrics["pseudo_precision"],
         "pseudo_f1": pseudo_metrics["pseudo_f1"],
         "pseudo_fraud_count": pseudo_metrics["pseudo_fraud_count"],
-    }
-
-    return {
-        "cleaned_file_path": str(output_path),
-        "quality_report": quality_report,
-        "cleaning_summary": cleaning_summary,
-        "cleaning_report_text": report_text,
-        "total_transactions_scored": int(len(scored_df)),
-        "fraud_metrics": fraud_metrics,
-        **fraud_metrics,
         "top_transactions": top_transactions,
+        "eda_summary": eda_summary,
     }
