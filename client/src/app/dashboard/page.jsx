@@ -1208,6 +1208,435 @@ function DashboardPage() {
                 )}
               </section>
 
+              {/* ── KPI ─────────────────────────────────────── */}
+              <section
+                ref={(n) => {
+                  sectionRefs.current.kpi = n;
+                }}
+                id="kpi"
+                className="card"
+                style={{ padding: "30px 34px", scrollMarginTop: 112 }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    marginBottom: 26,
+                  }}
+                >
+                  <div>
+                    <div className="pill" style={{ marginBottom: 13 }}>
+                      <BarChart3 style={{ width: 9, height: 9 }} /> KPI Metrics
+                    </div>
+                    <h2
+                      className="serif"
+                      style={{
+                        fontSize: 28,
+                        fontWeight: 900,
+                        color: "rgba(255,255,255,0.88)",
+                        lineHeight: 1.12,
+                        margin: 0,
+                      }}
+                    >
+                      Cleaning metrics
+                      <br />
+                      <em
+                        style={{ fontStyle: "italic", color: "var(--green)" }}
+                      >
+                        at a glance
+                      </em>
+                    </h2>
+                  </div>
+                  {uploadResult && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "7px 13px",
+                        borderRadius: 9,
+                        border: "1px solid rgba(0,232,122,0.24)",
+                        background: "rgba(0,232,122,0.05)",
+                        animation: "badgeIn 0.35s ease both",
+                      }}
+                    >
+                      <CheckCircle2
+                        style={{ width: 13, height: 13, color: "var(--green)" }}
+                      />
+                      <span
+                        className="mono"
+                        style={{
+                          fontSize: 9,
+                          color: "var(--green)",
+                          letterSpacing: "0.12em",
+                        }}
+                      >
+                        PROCESSED
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4,1fr)",
+                    gap: 11,
+                    marginBottom: 11,
+                  }}
+                >
+                  <KpiCard
+                    label="Rows before"
+                    value={derivedMetrics.rowsBefore}
+                    icon={BarChart3}
+                    delay={0}
+                  />
+                  <KpiCard
+                    label="Rows after"
+                    value={derivedMetrics.rowsAfter}
+                    icon={CheckCircle2}
+                    delay={55}
+                  />
+                  <KpiCard
+                    label="Duplicates"
+                    value={derivedMetrics.duplicatesRemoved}
+                    icon={FileSpreadsheet}
+                    delay={110}
+                  />
+                  <KpiCard
+                    label="Outliers"
+                    value={derivedMetrics.outliersDetected}
+                    icon={AlertTriangle}
+                    highlight
+                    delay={165}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3,1fr)",
+                    gap: 11,
+                  }}
+                >
+                  {[
+                    {
+                      label: "Invalid timestamps",
+                      value: derivedMetrics.invalidTimestamps,
+                    },
+                    { label: "Invalid IPs", value: derivedMetrics.invalidIps },
+                    {
+                      label: "Missing values filled",
+                      value: derivedMetrics.missingFilled,
+                    },
+                  ].map((m, i) => (
+                    <div
+                      key={m.label}
+                      className="stat-mini"
+                      style={{
+                        animation: `kpiIn 0.5s ease ${215 + i * 55}ms both`,
+                      }}
+                    >
+                      <p
+                        className="mono"
+                        style={{
+                          fontSize: 9,
+                          letterSpacing: "0.12em",
+                          color: "rgba(255,255,255,0.26)",
+                          textTransform: "uppercase",
+                          marginBottom: 7,
+                        }}
+                      >
+                        {m.label}
+                      </p>
+                      <p
+                        className="serif"
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 700,
+                          color: "rgba(255,255,255,0.76)",
+                          margin: 0,
+                        }}
+                      >
+                        {formatNumber(m.value)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* ── BACKEND DATA ────────────────────────────── */}
+              {uploadResult && (
+                <section
+                  ref={(n) => {
+                    sectionRefs.current["fraud-insights"] = n;
+                  }}
+                  id="fraud-insights"
+                  className="card"
+                  style={{
+                    padding: "30px 34px",
+                    scrollMarginTop: 112,
+                    animation: "slideUp 0.44s ease both",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      marginBottom: 22,
+                    }}
+                  >
+                    <div>
+                      <div className="pill" style={{ marginBottom: 13 }}>
+                        <Shield style={{ width: 9, height: 9 }} /> Fraud
+                        Insights
+                      </div>
+                      <h2
+                        className="serif"
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 900,
+                          color: "rgba(255,255,255,0.88)",
+                          margin: 0,
+                        }}
+                      >
+                        Fraud scoring output from{" "}
+                        <em
+                          style={{ fontStyle: "italic", color: "var(--green)" }}
+                        >
+                          /upload
+                        </em>
+                      </h2>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 8,
+                          color: "rgba(255,255,255,0.24)",
+                          marginBottom: 3,
+                          letterSpacing: "0.1em",
+                        }}
+                      >
+                        MODEL THRESHOLD
+                      </div>
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 10,
+                          color: "rgba(0,232,122,0.58)",
+                        }}
+                      >
+                        {formatPercent(fraudMetrics.threshold_used)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(4,1fr)",
+                      gap: 11,
+                      marginBottom: 11,
+                    }}
+                  >
+                    <KpiCard
+                      label="Flagged"
+                      value={fraudMetrics.fraud_transaction_count}
+                      icon={AlertTriangle}
+                      highlight
+                      delay={0}
+                    />
+                    {/* <KpiCard
+                      label="Precision"
+                      value={formatPercent(fraudMetrics.precision)}
+                      icon={Shield}
+                      delay={55}
+                    />
+                    <KpiCard
+                      label="Recall"
+                      value={formatPercent(fraudMetrics.recall)}
+                      icon={Activity}
+                      delay={110}
+                    /> */}
+                    {/* <KpiCard
+                      label="F1 Score"
+                      value={formatPercent(fraudMetrics.f1)}
+                      icon={Zap}
+                      delay={165}
+                    /> */}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3,1fr)",
+                      gap: 11,
+                      marginBottom: 18,
+                    }}
+                  >
+                    {[
+                      {
+                        label: "Scored transactions",
+                        value: uploadResult.total_transactions_scored ?? 0,
+                      },
+                      // {
+                      //   label: "Actual fraud",
+                      //   value: fraudMetrics.actual_fraud_count ?? "N/A",
+                      // },
+                      {
+                        label: "Pseudo F1",
+                        value: formatPercent(fraudMetrics.pseudo_f1),
+                      },
+                    ].map((m, i) => (
+                      <div
+                        key={m.label}
+                        className="stat-mini"
+                        style={{
+                          animation: `kpiIn 0.5s ease ${215 + i * 55}ms both`,
+                        }}
+                      >
+                        <p
+                          className="mono"
+                          style={{
+                            fontSize: 9,
+                            letterSpacing: "0.12em",
+                            color: "rgba(255,255,255,0.26)",
+                            textTransform: "uppercase",
+                            marginBottom: 7,
+                          }}
+                        >
+                          {m.label}
+                        </p>
+                        <p
+                          className="serif"
+                          style={{
+                            fontSize: 24,
+                            fontWeight: 700,
+                            color: "rgba(255,255,255,0.76)",
+                            margin: 0,
+                          }}
+                        >
+                          {typeof m.value === "number" ? formatNumber(m.value) : m.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.052)",
+                      padding: "17px 19px",
+                    }}
+                  >
+                    <div
+                      className="mono"
+                      style={{
+                        fontSize: 9,
+                        letterSpacing: "0.13em",
+                        color: "rgba(255,255,255,0.33)",
+                        textTransform: "uppercase",
+                        marginBottom: 13,
+                      }}
+                    >
+                      Top flagged transactions
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 7,
+                      }}
+                    >
+                      {topTransactions.length ? (
+                        topTransactions.map((tx, i) => (
+                          <div
+                            key={`${tx.transaction_id || "txn"}-${i}`}
+                            className="col-row"
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1.1fr 0.8fr 0.7fr 1.4fr",
+                              gap: 12,
+                              alignItems: "center",
+                            }}
+                          >
+                            <div>
+                              <div
+                                className="mono"
+                                style={{
+                                  fontSize: 10,
+                                  color: "rgba(255,255,255,0.68)",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {tx.transaction_id || "Unknown"}
+                              </div>
+                              <div
+                                className="mono"
+                                style={{
+                                  fontSize: 9,
+                                  color: "rgba(255,255,255,0.25)",
+                                }}
+                              >
+                                {tx.criticality
+                                  ? `Severity: ${String(tx.criticality).toUpperCase()}`
+                                  : tx.user_id || "Scored transaction"}
+                              </div>
+                            </div>
+                            <div
+                              className="mono"
+                              style={{
+                                fontSize: 9,
+                                color: "rgba(255,255,255,0.42)",
+                              }}
+                            >
+                              {tx.transaction_amount != null
+                                ? `INR ${formatNumber(tx.transaction_amount)}`
+                                : "Amount N/A"}
+                            </div>
+                            <div
+                              className="mono"
+                              style={{
+                                fontSize: 9,
+                                color: "rgba(239,120,120,0.88)",
+                              }}
+                            >
+                              {formatPercent(tx.fraud_probability)}
+                            </div>
+                            <div
+                              className="mono"
+                              style={{
+                                fontSize: 9,
+                                color: "rgba(0,232,122,0.5)",
+                                lineHeight: 1.7,
+                              }}
+                            >
+                              {tx.plain_english_reason ||
+                                (Array.isArray(tx.top_signals) && tx.top_signals.length
+                                  ? tx.top_signals.join(" | ")
+                                  : "Signals unavailable")}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div
+                          className="mono"
+                          style={{
+                            fontSize: 10,
+                            color: "rgba(255,255,255,0.35)",
+                            padding: "12px 2px",
+                          }}
+                        >
+                          No ranked transactions were returned for this upload.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+
               {uploadResult && (
                 <section
                   ref={(n) => {
@@ -1467,6 +1896,9 @@ function DashboardPage() {
                       marginTop: 14,
                     }}
                   >
+                    <Link href="/kpis" className="btn-g">
+                      Open KPIs
+                    </Link>
                     <Link href="/fraud-report" className="btn-g">
                       View fraud report
                     </Link>

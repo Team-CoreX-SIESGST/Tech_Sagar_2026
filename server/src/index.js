@@ -21,6 +21,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://tech-sagar-2026.vercel.app",
+  "https://tech-sagar-2026-1.onrender.com",
 ];
 const corsOptions = {
   origin: (origin, callback) => {

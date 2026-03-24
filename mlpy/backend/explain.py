@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from .model import derive_flagging_threshold
+try:
+    from .model import derive_flagging_threshold
+except ImportError:  # Allows running without package context.
+    from model import derive_flagging_threshold
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +260,7 @@ def generate_full_report(
         )
 
     report = {
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "summary": {
             "total_transactions": int(len(scored_df)),
             "fraud_detected": int(flagged_mask.sum()),
