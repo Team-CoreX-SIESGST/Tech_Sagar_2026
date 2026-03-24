@@ -14,6 +14,7 @@ try:
     from .eda import generate_eda_artifacts
     from .explain import generate_full_report, save_report
     from .features import build_features
+    from .kpis import build_cleaned_data_kpis
     from .model import compute_pseudo_truth_metrics, derive_flagging_threshold, score_fraud
     from .patterns import detect_patterns
 except ImportError:  # Allows running as a script without package context.
@@ -22,6 +23,7 @@ except ImportError:  # Allows running as a script without package context.
     from eda import generate_eda_artifacts
     from explain import generate_full_report, save_report
     from features import build_features
+    from kpis import build_cleaned_data_kpis
     from model import compute_pseudo_truth_metrics, derive_flagging_threshold, score_fraud
     from patterns import detect_patterns
 
@@ -123,6 +125,22 @@ def _compute_classification_metrics(
         "f1": round(float(f1), 4) if f1 is not None else None,
         "actual_fraud_count": int(truth.sum()),
     }
+
+
+@app.get("/kpis")
+async def get_cleaned_data_kpis() -> dict:
+    """Return KPI summaries derived from the latest cleaned transaction dataset."""
+    cleaned_path = Path(__file__).resolve().parents[1] / "clean_transactions.csv"
+
+    try:
+        return build_cleaned_data_kpis(cleaned_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Cleaned dataset not found. Upload a dataset first.")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Failed to generate cleaned-data KPIs: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to generate KPIs.")
 
 
 @app.post("/upload")

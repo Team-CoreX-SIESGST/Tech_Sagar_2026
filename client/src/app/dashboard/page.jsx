@@ -1419,7 +1419,7 @@ function DashboardPage() {
                       highlight
                       delay={0}
                     />
-                    <KpiCard
+                    {/* <KpiCard
                       label="Precision"
                       value={formatPercent(fraudMetrics.precision)}
                       icon={Shield}
@@ -1430,13 +1430,13 @@ function DashboardPage() {
                       value={formatPercent(fraudMetrics.recall)}
                       icon={Activity}
                       delay={110}
-                    />
-                    <KpiCard
+                    /> */}
+                    {/* <KpiCard
                       label="F1 Score"
                       value={formatPercent(fraudMetrics.f1)}
                       icon={Zap}
                       delay={165}
-                    />
+                    /> */}
                   </div>
 
                   <div
@@ -1452,10 +1452,10 @@ function DashboardPage() {
                         label: "Scored transactions",
                         value: uploadResult.total_transactions_scored ?? 0,
                       },
-                      {
-                        label: "Actual fraud",
-                        value: fraudMetrics.actual_fraud_count ?? "N/A",
-                      },
+                      // {
+                      //   label: "Actual fraud",
+                      //   value: fraudMetrics.actual_fraud_count ?? "N/A",
+                      // },
                       {
                         label: "Pseudo F1",
                         value: formatPercent(fraudMetrics.pseudo_f1),
@@ -1872,6 +1872,9 @@ function DashboardPage() {
                       marginTop: 14,
                     }}
                   >
+                    <Link href="/kpis" className="btn-g">
+                      Open KPIs
+                    </Link>
                     <Link href="/fraud-report" className="btn-g">
                       View fraud report
                     </Link>
