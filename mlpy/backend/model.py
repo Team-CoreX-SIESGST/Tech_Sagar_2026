@@ -1,5 +1,3 @@
-#backend/model.py
-
 from __future__ import annotations
 
 import logging
@@ -47,36 +45,33 @@ LABEL_EXCLUDE_COLUMNS = {
 TOP_SIGNAL_CANDIDATES = [
     "pattern_score",
     "patterns_fired",
-    "benford_deviation_score",
+    "historical_user_avg_amount",
     "amount_user_zscore",
     "amount_balance_ratio",
     "rolling_txn_count_1h",
-    "rolling_txn_count_24h",
     "time_since_last_transaction",
     "users_per_device",
     "users_per_ip",
-    "rfm_recency",
-    "rfm_frequency",
-    "rfm_monetary",
     "cleaning_flag_score",
-    "network_risk_score",
-    "velocity_risk_score",
-    "status_risk_score",
-    "amount_exceeds_balance_flag",
-    "round_number_flag",
-    "structuring_amount_flag",
-    "rapid_repeat_5s_flag",
-    "odd_hour_transaction_flag",
+    "sudden_large_transaction_flag",
+    "micro_transaction_payment_flag",
+    "zero_or_missing_amount_flag",
+    "category_amount_mismatch_flag",
     "location_mismatch_flag",
     "new_merchant_city_flag",
+    "rapid_repeat_5s_flag",
+    "odd_hour_high_amount_flag",
+    "user_location_pattern_deviation_flag",
     "shared_device_flag",
     "shared_ip_flag",
-    "malformed_ip_flag",
-    "invalid_device_flag",
+    "new_device_for_user_flag",
     "failed_to_success_retry_flag",
-    "high_failed_ratio_flag",
+    "amount_exceeds_balance_flag",
     "high_balance_utilization_flag",
     "successful_overdraft_flag",
+    "malformed_ip_flag",
+    "invalid_device_flag",
+    "success_unusual_context_flag",
     "is_amount_missing",
     "is_amount_outlier",
     "invalid_ip_cleaning_flag",
@@ -100,17 +95,24 @@ class FraudModelArtifacts:
 _MODEL_CACHE: FraudModelArtifacts | None = None
 
 
-def derive_flagging_threshold(
-    scored_df: pd.DataFrame,
-) -> float:
-    """Return a dynamic fraud threshold based on the scored distribution."""
+def derive_flagging_threshold(scored_df: pd.DataFrame) -> float:
+    """Return a dataset-adaptive fraud threshold based on pattern density."""
     if scored_df.empty:
         return 0.55
+
+    patterns_fired = scored_df.get("patterns_fired", pd.Series(0, index=scored_df.index)).fillna(0)
+    pattern_density = float(patterns_fired.mean())
+
+    target_quantile = 0.892
+    if pattern_density >= 3.0:
+        target_quantile = 0.85
+    elif pattern_density >= 2.0:
+        target_quantile = 0.875
 
     threshold = float(
         max(
             0.55,
-            scored_df["fraud_probability"].quantile(0.89),
+            scored_df["fraud_probability"].quantile(target_quantile),
         )
     )
     return threshold
@@ -156,21 +158,30 @@ def _normalize_scores(values: np.ndarray) -> np.ndarray:
 def _derive_weak_labels(df: pd.DataFrame, anomaly_score: np.ndarray) -> np.ndarray:
     critical_flags = pd.DataFrame(
         {
-            "amount_exceeds_balance_flag": df.get("amount_exceeds_balance_flag", 0),
-            "successful_overdraft_flag": df.get("successful_overdraft_flag", 0),
-            "failed_to_success_retry_flag": df.get("failed_to_success_retry_flag", 0),
+            "sudden_large_transaction_flag": df.get("sudden_large_transaction_flag", 0),
+            "category_amount_mismatch_flag": df.get("category_amount_mismatch_flag", 0),
+            "location_mismatch_flag": df.get("location_mismatch_flag", 0),
+            "new_merchant_city_flag": df.get("new_merchant_city_flag", 0),
             "shared_device_flag": df.get("shared_device_flag", 0),
             "shared_ip_flag": df.get("shared_ip_flag", 0),
+            "new_device_for_user_flag": df.get("new_device_for_user_flag", 0),
+            "user_location_pattern_deviation_flag": df.get("user_location_pattern_deviation_flag", 0),
+            "odd_hour_high_amount_flag": df.get("odd_hour_high_amount_flag", 0),
+            "rapid_repeat_5s_flag": df.get("rapid_repeat_5s_flag", 0),
+            "failed_to_success_retry_flag": df.get("failed_to_success_retry_flag", 0),
+            "amount_exceeds_balance_flag": df.get("amount_exceeds_balance_flag", 0),
+            "high_balance_utilization_flag": df.get("high_balance_utilization_flag", 0),
+            "successful_overdraft_flag": df.get("successful_overdraft_flag", 0),
+            "success_unusual_context_flag": df.get("success_unusual_context_flag", 0),
             "invalid_device_flag": df.get("invalid_device_flag", 0),
             "malformed_ip_flag": df.get("malformed_ip_flag", 0),
-            "high_balance_utilization_flag": df.get("high_balance_utilization_flag", 0),
             "is_amount_outlier": df.get("is_amount_outlier", 0),
         }
     ).fillna(0).astype(int)
 
     pattern_score = df.get("pattern_score", pd.Series(0, index=df.index)).fillna(0)
     critical_positive = critical_flags.any(axis=1)
-    high_pattern = pattern_score.ge(max(3, float(pattern_score.quantile(0.85))))
+    high_pattern = pattern_score.ge(max(2, float(pattern_score.quantile(0.85))))
     high_anomaly = anomaly_score >= float(np.quantile(anomaly_score, 0.9))
     weak_labels = (critical_positive | high_pattern | high_anomaly).astype(int).to_numpy()
 
@@ -204,7 +215,9 @@ def _compute_feature_importances(
             feature = matrix[column].to_numpy(dtype=float)
             feature_centered = feature - feature.mean()
             denominator = np.linalg.norm(feature_centered) * np.linalg.norm(y_centered)
-            correlation = 0.0 if denominator == 0 else abs(np.dot(feature_centered, y_centered) / denominator)
+            correlation = 0.0 if denominator == 0 else abs(
+                np.dot(feature_centered, y_centered) / denominator
+            )
             raw_importances.append(correlation)
         raw_importances = np.asarray(raw_importances, dtype=float)
 
@@ -302,9 +315,7 @@ def _score_with_artifacts(df: pd.DataFrame, artifacts: FraudModelArtifacts) -> p
     pattern_score = df.get("pattern_score", pd.Series(0, index=df.index)).fillna(0.0).to_numpy(dtype=float)
     max_pattern_score = float(pattern_score.max()) if pattern_score.size else 0.0
     normalized_pattern_score = (
-        _normalize_scores(pattern_score)
-        if max_pattern_score > 0
-        else np.zeros_like(pattern_score)
+        _normalize_scores(pattern_score) if max_pattern_score > 0 else np.zeros_like(pattern_score)
     )
     fraud_probability = 0.55 * classifier_probability + 0.30 * anomaly_score + 0.15 * normalized_pattern_score
     fraud_probability = np.clip(fraud_probability, 0.0, 1.0)
